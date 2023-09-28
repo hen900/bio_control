@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Mushroom Project :></title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+
+    <body>
+        <h1 class="mainHeading">Mushroom Project</h1>
+        <h2>Weather Data</h2>
+        <h3>Temperature</h3>
+        <p id = "temperatureText"></p>
+        <script src="measurement.js"></script>
+        <script>
+            updateMeasurements();
+        </script>
+        <script>
+            var returnTemperatureText = currentTemperature();
+            document.getElementById("temperatureText").innerHTML = returnTemperatureText;
+        </script>
+        <h3>Humidity</h3>
+        <p id = "humidityText"></p>
+        <script>
+            var returnHumidityText = currentHumidity();
+            document.getElementById("humidityText").innerHTML = returnHumidityText;
+        </script>
+        <h3>CO<sub>2</sub> Levels</h3>
+        <p id = "co2Text"></p>
+        <script>
+            var returnCO2Text = currentCO2();
+            document.getElementById("co2Text").innerHTML = returnCO2Text;
+        </script>
+    </body>
+</html>
