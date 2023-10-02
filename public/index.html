@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch and Display Data</title>
+</head>
+<body>
+    <h1>Live Data</h1>
+	<p>Refresh rate = 10s</p>
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Humidity</th>
+                <th>Temperature</th>
+                <th>CO2</th>
+            </tr>
+        </thead>
+        <tbody id="data-body"></tbody>
+    </table>
+
+    <script>
+        // Function to fetch and display data as a table
+        async function fetchData() {
+            try {
+                const response = await fetch('/update');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                const dataTable = document.getElementById('data-table');
+                const dataBody = document.getElementById('data-body');
+                dataBody.innerHTML = ''; // Clear existing data
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.timestamp}</td>
+                        <td>${item.humidity}</td>
+                        <td>${item.temperature}</td>
+                        <td>${item.co2}</td>
+                    `;
+                    dataBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Call the fetchData function initially and every 10 seconds
+        fetchData(); // Initial call
+        setInterval(fetchData, 10000); // Refresh every 10 seconds
+    </script>
+</body>
+</html>
