@@ -4,7 +4,7 @@
 class Actuator {
 public:
   Actuator() {}
-  Actuator(int pin) : pin(pin), state(false) {}
+  Actuator(int pin) : pin(pin), status(false) {}
 
   void init(int pin) {
     pinMode(pin, OUTPUT);
@@ -13,27 +13,27 @@ public:
 
   void on() {
     digitalWrite(pin, HIGH);
-    state = true;
+    status = true;
   }
 
   void off() {
     digitalWrite(pin, LOW);
-    state = false;
+    status = false;
   }
 
   void toggle() {
-    if (state) {
+    if (status) {
       off();
     } else {
       on();
     }
   }
 
-  bool getState() {
-    return state;
+  bool getStatus() {
+    return status;
   }
 
 private:
   int pin;
-  bool state;
+  bool status;
 };
