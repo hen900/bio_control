@@ -1,17 +1,12 @@
 #include <Arduino.h>
 #include <SensirionI2CScd4x.h>
 #include <Wire.h>
-
-
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
-
-/// actuator and sensor are made into objects
-#include <Actuator.h>
+#include <Actuator.h>   // actuator and sensor are made into objects
 #include <BioSensor.h>
-
 
 const int refreshRate = 10; // refresh rate in seconds
 
@@ -25,17 +20,16 @@ Actuator actuator3;
 BioSensor sensor1;
 
 // network defs
-const char *ssid = "desktop-hot"; //Enter your WIFI ssid
-const char *password = "77635Skk"; //Enter your WIFI password
+// const char *ssid = "desktop-hot"; //Enter your WIFI ssid
+// const char *password = "77635Skk"; //Enter your WIFI password
+const char *ssid = "HomeWifi"; //Enter your WIFI ssid
+const char *password = "Tonight@8"; //Enter your WIFI password
 const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
 
 WiFiClient client;
 
 // NTP server 
-
 const char* ntpServer  = "pool.ntp.org";  // NTP server address
-
-
 
 //Used to send data off to endpoint 
 String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send data, returns response
@@ -65,13 +59,15 @@ String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send
       return payload; // this is the server response
     }
   } else {
-    Serial.printf("[HTTP] POST... failed, error: %s", http.errorToString(httpCode).c_str());
+    Serial.printf("\n[HTTP] POST... failed, error: %s", http.errorToString(httpCode).c_str());
     return http.errorToString(httpCode);
   }
 
   http.end();
 }
-void setupTime(void){
+
+void setupTime(void) {
+
   // Initialize and set the time
   configTime(0, 0, ntpServer); // UTC time; adjust the first two parameters for your time zone if needed
 
@@ -82,9 +78,7 @@ void setupTime(void){
   }
 }
 
-
-
-void setupWifi(void){ ///simple wifi setup
+void setupWifi(void) { ///simple wifi setup
 
     Serial.println("Attempting Wifi Connection");
     WiFi.begin(ssid, password);
@@ -99,8 +93,7 @@ void setupWifi(void){ ///simple wifi setup
 
 
 //processes the response from the server by calling acutator object functions
-
-void processResponse( String data) {
+void processResponse(String data) {
 
   DynamicJsonDocument doc(512);
   // Parse the JSON string
@@ -114,27 +107,25 @@ void processResponse( String data) {
     Serial.print(" actuator 1  state change ordered, setting to ");
     Serial.println(newActuator1Status);  
     actuator1.toggle();
-    
-    }
-
-    if (newActuator2Status != actuator2.getStatus()) {
+  }
+  
+  if (newActuator2Status != actuator2.getStatus()) {
     Serial.print(" actuator 2  state change ordered, setting to ");
     Serial.println(newActuator2Status);  
     actuator2.toggle();
-    
-    }
+  }
   
-    if (newActuator3Status != actuator3.getStatus()) {
+  if (newActuator3Status != actuator3.getStatus()) {
     Serial.print(" actuator 3  state change ordered, setting to ");
     Serial.println(newActuator3Status);  
     actuator1.toggle();
-    
-    }
+  }
 }
 
-
 void setup() {
-    
+    // Serial.begin(115200); // Monitor for serial output
+    Serial.println("In setup");
+
     setupWifi();    
     setupTime();
     sensor1.init(); // these objects are initialized earlier at top of the code
@@ -143,6 +134,7 @@ void setup() {
 
 void loop() {
 
+    Serial.println("In loop");
     sensor1.read();
     float temperature = sensor1.getTemperature();
     float humidity = sensor1.getHumidity();
