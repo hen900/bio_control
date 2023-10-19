@@ -9,6 +9,7 @@ public:
     }
 
     void init() {
+        Serial.print("\nin bio Sensor init");
         scd4x.begin(Wire);
 
         uint16_t error;
@@ -36,15 +37,18 @@ public:
     }
 
     void read() {
+        //Serial.print("Reading measurement");
         uint16_t error;
         char errorMessage[256];
-
         delay(100);
 
         uint16_t co2 = 0;
-        float temperature = 0.0f;
-        float humidity = 0.0f;
+        // float temperature = 0.0f;
+        // float humidity = 0.0f;
+        float temperature = 0.0;
+        float humidity = 0.0;
         bool isDataReady = false;
+
         error = scd4x.getDataReadyFlag(isDataReady);
         if (error) {
             handleErrorMessage("getDataReadyFlag", error, errorMessage);
@@ -53,14 +57,22 @@ public:
         if (!isDataReady) {
             return;
         }
+
         error = scd4x.readMeasurement(co2, temperature, humidity);
         if (error) {
             handleErrorMessage("readMeasurement", error, errorMessage);
         
         } else {
+            //Serial.print("Printing measurement");
             co2Value = co2;
+            Serial.print("\nCO2 Value read:"); 
+            Serial.print(co2);
             temperatureValue = temperature;
+            Serial.print("\tTemp Value read: "); 
+            Serial.print(temperature);
             humidityValue = humidity;
+            Serial.print("\t\tHumidity Value read: "); 
+            Serial.print(humidity);
         }
     }
 

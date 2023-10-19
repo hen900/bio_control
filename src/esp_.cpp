@@ -8,7 +8,7 @@
 #include <Actuator.h>   // actuator and sensor are made into objects
 #include <BioSensor.h>
 
-const int refreshRate = 10; // refresh rate in seconds
+const int refreshRate = 3; // refresh rate in seconds
 
 // init fan actuator object
 Actuator actuator1;
@@ -20,11 +20,21 @@ Actuator actuator3;
 BioSensor sensor1;
 
 // network defs
+
+// //Henry Wifi
 // const char *ssid = "desktop-hot"; //Enter your WIFI ssid
-// const char *password = "77635Skk"; //Enter your WIFI password
-const char *ssid = "HomeWifi"; //Enter your WIFI ssid
-const char *password = "Tonight@8"; //Enter your WIFI password
-const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
+// const char *password = "vermont9"; //Enter your WIFI password
+
+// // Kessa Wifi
+// const char *ssid = "HomeWifi"; //Enter your WIFI ssid
+// const char *password = "Tonight@8"; //Enter your WIFI password
+
+//Alicia Wifi
+const char *ssid = "Alicia-Hotspot"; //Enter your WIFI ssid
+const char *password = "3*L5345m"; //Enter your WIFI password
+
+//const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
+const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint
 
 WiFiClient client;
 
@@ -33,7 +43,7 @@ const char* ntpServer  = "pool.ntp.org";  // NTP server address
 
 //Used to send data off to endpoint 
 String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send data, returns response
-
+  Serial.print("1A");
   DynamicJsonDocument doc(512); //instantiate json document "doc" with 512 bytes
   doc["humidity"] = hum; // add key pair value to json ( h is key, humidity is value)
   doc["temperature"] = temp;
@@ -49,21 +59,23 @@ String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send
   HTTPClient http;
   http.begin(client, server_url);
   http.addHeader("Content-Type", "application/json"); // header used to define HTTP request
-
   int httpCode = http.POST(json);
 
-  if(httpCode > 0) { // 0 meaning 0 errors in response
-    if(httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-      String payload = http.getString(); 
-      Serial.print("Response: ");Serial.println(payload);
-      return payload; // this is the server response
-    }
+  //Serial.print("1E");
+  if(httpCode > 0 && (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)) { // 0 meaning 0 errors in response
+    Serial.print("\nXX\n");
+    String payload = http.getString(); 
+    Serial.print("Response: ");Serial.println(payload);
+    return payload; // this is the server response
+    
   } else {
-    Serial.printf("\n[HTTP] POST... failed, error: %s", http.errorToString(httpCode).c_str());
+    //Serial.printf("\n[HTTP] POST... failed, error: %s", http.errorToString(httpCode).c_str());
     return http.errorToString(httpCode);
   }
 
+  Serial.print("1H");
   http.end();
+  //Serial.print("1Z");
 }
 
 void setupTime(void) {
@@ -79,7 +91,8 @@ void setupTime(void) {
 }
 
 void setupWifi(void) { ///simple wifi setup
-
+    
+    delay(3000);
     Serial.println("Attempting Wifi Connection");
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
@@ -123,27 +136,29 @@ void processResponse(String data) {
 }
 
 void setup() {
-    // Serial.begin(115200); // Monitor for serial output
-    Serial.println("In setup");
+  Serial.begin(115200); // Monitor for serial output
+  Serial.println("In setup");
 
-    setupWifi();    
-    setupTime();
-    sensor1.init(); // these objects are initialized earlier at top of the code
-    actuator1.init(12); // pin being used for fan ( in this case 12)
+  setupWifi();    
+  //setupTime();
+    
+  sensor1.init(); // these objects are initialized earlier at top of the code 
+  actuator1.init(12); // pin being used for fan ( in this case 12)
+    
 }
 
 void loop() {
 
-    Serial.println("In loop");
+    //Serial.println("\nLoop1");
     sensor1.read();
     float temperature = sensor1.getTemperature();
     float humidity = sensor1.getHumidity();
     uint16_t co2 = sensor1.getCO2();
     unsigned long now = time(nullptr);
-
+    
+    //Serial.println("Loop2");
     String responseData = sendData(temperature,humidity,co2,now);  // send off data
     processResponse(responseData);
-
     delay(refreshRate*1000); // refresh rate        
 }
 
