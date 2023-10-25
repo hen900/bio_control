@@ -33,6 +33,14 @@ public:
     return status;
   }
 
+  bool getPin() {
+    return pin;
+  }
+
+  void setPin(int level) {
+    digitalWrite(pin, level);
+  }
+
 private:
   int pin;
   bool status;

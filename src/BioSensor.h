@@ -65,13 +65,13 @@ public:
         } else {
             //Serial.print("Printing measurement");
             co2Value = co2;
-            Serial.print("\nCO2 Value read:"); 
+            Serial.print("\nCO2 Value:"); 
             Serial.print(co2);
             temperatureValue = temperature;
-            Serial.print("\tTemp Value read: "); 
+            Serial.print("\t\tTemp Value: "); 
             Serial.print(temperature);
             humidityValue = humidity;
-            Serial.print("\t\tHumidity Value read: "); 
+            Serial.print("\tHumidity Value: "); 
             Serial.print(humidity);
         }
     }

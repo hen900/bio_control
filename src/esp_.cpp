@@ -5,18 +5,17 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <time.h>
-#include <Actuator.h>   // actuator and sensor are made into objects
+#include <Actuator.h>   
 #include <BioSensor.h>
 
-const int refreshRate = 3; // refresh rate in seconds
+const int refreshRate = 1; // refresh rate in seconds
 
 // init fan actuator object
 Actuator actuator1;
 Actuator actuator2;
 Actuator actuator3;
 
-//init sensor as Biosensor object. A BioSensor reads temp,humi and co2 so you only 
-//need one object
+//init sensor as Biosensor object. A BioSensor reads temp,humi and co2 so you only need one object
 BioSensor sensor1;
 
 // network defs
@@ -43,15 +42,17 @@ const char* ntpServer  = "pool.ntp.org";  // NTP server address
 
 //Used to send data off to endpoint 
 String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send data, returns response
-  Serial.print("1A");
+  //Serial.print("Sending data");
+  Serial.print("\ncurrent time is ");
+  Serial.print(now);
   DynamicJsonDocument doc(512); //instantiate json document "doc" with 512 bytes
   doc["humidity"] = hum; // add key pair value to json ( h is key, humidity is value)
   doc["temperature"] = temp;
   doc["co2"] = co2;
   doc["time"] = now;
   doc["actuator1Status"] =actuator1.getStatus(); // get the state of the actuator and add it to the json
-  doc["actuator2Status"] = actuator2.getStatus(); // these are to be filled when a 2nd and 3rd actuator are 
-  doc["actuator3Status" ] = actuator3.getStatus(); // added
+  doc["actuator2Status"] = actuator2.getStatus();  
+  doc["actuator3Status" ] = actuator3.getStatus(); 
 
   String json;
   serializeJson(doc, json); //convert the DynamicJsonDocument into one coherent string "json"
@@ -105,33 +106,81 @@ void setupWifi(void) { ///simple wifi setup
 }
 
 
-//processes the response from the server by calling acutator object functions
-void processResponse(String data) {
+// //processes the response from the server by calling acutator object functions
+// void processResponse(String data) {
 
+//   DynamicJsonDocument doc(512);
+//   // Parse the JSON string
+//   DeserializationError error = deserializeJson(doc, data);
+//   if(error) {
+//     Serial.print("Bad deserial")
+//     return;
+//   }
+  
+//   Serial.print("\n\nWE MADE IT HERE\n\n");
+//   // Extract new values from the JSON document
+//   bool newActuator1Status= doc["actuator1Set"];
+//   bool newActuator2Status= doc["actuator2Set"];
+//   bool newActuator3Status= doc["actuator3Set"];
+
+//   Serial.print("Old Actuator 1 Status");
+//   Serial.print(actuator1.getStatus());
+//   Serial.print("newActuator1Status");
+//   Serial.print(newActuator1Status);
+
+//   if (newActuator1Status != actuator1.getStatus()) {
+//     Serial.print(" actuator 1  state change ordered, setting to ");
+//     Serial.println(newActuator1Status);  
+//     //actuator1.on();
+//     actuator1.setPin(newActuator1Status);
+//   }
+  
+//   if (newActuator2Status != actuator2.getStatus()) {
+//     Serial.print(" actuator 2  state change ordered, setting to ");
+//     Serial.println(newActuator2Status);  
+//     //actuator2.on();
+//     actuator2.setPin(newActuator2Status);
+//   }
+  
+//   if (newActuator3Status != actuator3.getStatus()) {
+//     Serial.print(" actuator 3  state change ordered, setting to ");
+//     Serial.println(newActuator3Status);  
+//     //actuator1.on();
+//     actuator3.setPin(newActuator3Status);
+//   }
+// }
+
+void processResponse(String data) {
   DynamicJsonDocument doc(512);
   // Parse the JSON string
   DeserializationError error = deserializeJson(doc, data);
+  if (error) {
+    Serial.print("Bad deserialization");
+    return;
+  }
+  Serial.print("\n\nWE MADE IT HERE\n\n");
   // Extract new values from the JSON document
-  bool newActuator1Status= doc["actuator1Set"];
-  bool newActuator2Status= doc["actuator2Set"];
-  bool newActuator3Status= doc["actuator3Set"];
-
+  bool newActuator1Status = doc["actuator1Status"];
+  bool newActuator2Status = doc["actuator2Status"];
+  bool newActuator3Status = doc["actuator3Status"];
+  Serial.print("Old Actuator 1 Status");
+  Serial.print(actuator1.getStatus());
+  Serial.print("newActuator1Status");
+  Serial.print(newActuator1Status);
   if (newActuator1Status != actuator1.getStatus()) {
-    Serial.print(" actuator 1  state change ordered, setting to ");
-    Serial.println(newActuator1Status);  
-    actuator1.toggle();
+    Serial.print(" actuator 1 state change ordered, setting to ");
+    Serial.println(newActuator1Status);
+    actuator1.setPin(newActuator1Status);
   }
-  
   if (newActuator2Status != actuator2.getStatus()) {
-    Serial.print(" actuator 2  state change ordered, setting to ");
-    Serial.println(newActuator2Status);  
-    actuator2.toggle();
+    Serial.print(" actuator 2 state change ordered, setting to ");
+    Serial.println(newActuator2Status);
+    actuator2.setPin(newActuator2Status);
   }
-  
   if (newActuator3Status != actuator3.getStatus()) {
-    Serial.print(" actuator 3  state change ordered, setting to ");
-    Serial.println(newActuator3Status);  
-    actuator1.toggle();
+    Serial.print(" actuator 3 state change ordered, setting to ");
+    Serial.println(newActuator3Status);
+    actuator3.setPin(newActuator3Status);
   }
 }
 
@@ -140,10 +189,16 @@ void setup() {
   Serial.println("In setup");
 
   setupWifi();    
-  //setupTime();
+  setupTime();
     
   sensor1.init(); // these objects are initialized earlier at top of the code 
+  actuator1.init(10); 
+  actuator1.init(11);
   actuator1.init(12); // pin being used for fan ( in this case 12)
+
+  digitalWrite(10, HIGH);
+  digitalWrite(actuator2.getPin(), HIGH);
+  actuator3.setPin(HIGH);
     
 }
 
@@ -156,6 +211,11 @@ void loop() {
     uint16_t co2 = sensor1.getCO2();
     unsigned long now = time(nullptr);
     
+    //Actuator
+    actuator1.toggle();
+    actuator2.toggle();
+    actuator3.toggle();
+
     //Serial.println("Loop2");
     String responseData = sendData(temperature,humidity,co2,now);  // send off data
     processResponse(responseData);
