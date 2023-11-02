@@ -24,13 +24,21 @@ BioSensor sensor1;
 // const char *ssid = "desktop-hot"; //Enter your WIFI ssid
 // const char *password = "vermont9"; //Enter your WIFI password
 
-// // Kessa Wifi
+// //Henry Hotspot Wifi
+// const char *ssid = "ipome"; //Enter your WIFI ssid
+// const char *password = "poopdoop"; //Enter your WIFI password
+
+// //Kessa Wifi
 // const char *ssid = "HomeWifi"; //Enter your WIFI ssid
 // const char *password = "Tonight@8"; //Enter your WIFI password
 
-//Alicia Wifi
-const char *ssid = "Alicia-Hotspot"; //Enter your WIFI ssid
-const char *password = "3*L5345m"; //Enter your WIFI password
+//Kessa Hotspot Wifi
+const char *ssid = "kessa"; //Enter your WIFI ssid
+const char *password = "noyesnonoyes"; //Enter your WIFI password
+
+// //Alicia Wifi
+// const char *ssid = "Alicia-Hotspot"; //Enter your WIFI ssid
+// const char *password = "3*L5345m"; //Enter your WIFI password
 
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
 const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint
@@ -42,7 +50,7 @@ const char* ntpServer  = "pool.ntp.org";  // NTP server address
 
 //Used to send data off to endpoint 
 String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send data, returns response
-  //Serial.print("Sending data");
+  Serial.print("\nIn sendData function\n");
   Serial.print("\ncurrent time is ");
   Serial.print(now);
   DynamicJsonDocument doc(512); //instantiate json document "doc" with 512 bytes
@@ -80,7 +88,7 @@ String sendData(float temp, float hum, uint16_t co2, unsigned long now){ // send
 }
 
 void setupTime(void) {
-
+  Serial.print("\nIn setupTime function\n");
   // Initialize and set the time
   configTime(0, 0, ntpServer); // UTC time; adjust the first two parameters for your time zone if needed
 
@@ -92,7 +100,7 @@ void setupTime(void) {
 }
 
 void setupWifi(void) { ///simple wifi setup
-    
+  Serial.print("\nIn setupWifi function\n");
     delay(3000);
     Serial.println("Attempting Wifi Connection");
     WiFi.begin(ssid, password);
@@ -102,91 +110,53 @@ void setupWifi(void) { ///simple wifi setup
     }
     Serial.println("WiFi connected");
     delay(1000);
-
 }
 
-
-// //processes the response from the server by calling acutator object functions
-// void processResponse(String data) {
-
-//   DynamicJsonDocument doc(512);
-//   // Parse the JSON string
-//   DeserializationError error = deserializeJson(doc, data);
-//   if(error) {
-//     Serial.print("Bad deserial")
-//     return;
-//   }
-  
-//   Serial.print("\n\nWE MADE IT HERE\n\n");
-//   // Extract new values from the JSON document
-//   bool newActuator1Status= doc["actuator1Set"];
-//   bool newActuator2Status= doc["actuator2Set"];
-//   bool newActuator3Status= doc["actuator3Set"];
-
-//   Serial.print("Old Actuator 1 Status");
-//   Serial.print(actuator1.getStatus());
-//   Serial.print("newActuator1Status");
-//   Serial.print(newActuator1Status);
-
-//   if (newActuator1Status != actuator1.getStatus()) {
-//     Serial.print(" actuator 1  state change ordered, setting to ");
-//     Serial.println(newActuator1Status);  
-//     //actuator1.on();
-//     actuator1.setPin(newActuator1Status);
-//   }
-  
-//   if (newActuator2Status != actuator2.getStatus()) {
-//     Serial.print(" actuator 2  state change ordered, setting to ");
-//     Serial.println(newActuator2Status);  
-//     //actuator2.on();
-//     actuator2.setPin(newActuator2Status);
-//   }
-  
-//   if (newActuator3Status != actuator3.getStatus()) {
-//     Serial.print(" actuator 3  state change ordered, setting to ");
-//     Serial.println(newActuator3Status);  
-//     //actuator1.on();
-//     actuator3.setPin(newActuator3Status);
-//   }
-// }
-
 void processResponse(String data) {
+  Serial.print("\nIn processResponse function\n");
+  Serial.println(data);
   DynamicJsonDocument doc(512);
   // Parse the JSON string
   DeserializationError error = deserializeJson(doc, data);
   if (error) {
     Serial.print("Bad deserialization");
+    Serial.println(error.f_str());
     return;
   }
-  Serial.print("\n\nWE MADE IT HERE\n\n");
+
   // Extract new values from the JSON document
   bool newActuator1Status = doc["actuator1Status"];
   bool newActuator2Status = doc["actuator2Status"];
   bool newActuator3Status = doc["actuator3Status"];
-  Serial.print("Old Actuator 1 Status");
+  Serial.print("\nOld Actuator 1 Status = ");
   Serial.print(actuator1.getStatus());
-  Serial.print("newActuator1Status");
+  Serial.print("\nnewActuator1Status = ");
   Serial.print(newActuator1Status);
+
   if (newActuator1Status != actuator1.getStatus()) {
-    Serial.print(" actuator 1 state change ordered, setting to ");
+    Serial.print("\nActuator 1 state change ordered, setting to ");
     Serial.println(newActuator1Status);
-    actuator1.setPin(newActuator1Status);
+    digitalWrite(10, newActuator1Status);
+    //actuator1.setPin(newActuator1Status);
   }
+
   if (newActuator2Status != actuator2.getStatus()) {
     Serial.print(" actuator 2 state change ordered, setting to ");
     Serial.println(newActuator2Status);
-    actuator2.setPin(newActuator2Status);
+    digitalWrite(11, newActuator2Status);
+    //actuator2.setPin(newActuator2Status);
   }
   if (newActuator3Status != actuator3.getStatus()) {
     Serial.print(" actuator 3 state change ordered, setting to ");
     Serial.println(newActuator3Status);
-    actuator3.setPin(newActuator3Status);
+    digitalWrite(12, newActuator2Status);
+    //actuator3.setPin(newActuator3Status);
   }
 }
 
 void setup() {
+  Serial.print("\nIn setup function\n");
   Serial.begin(115200); // Monitor for serial output
-  Serial.println("In setup");
 
   setupWifi();    
   setupTime();
@@ -196,19 +166,24 @@ void setup() {
   actuator1.init(11);
   actuator1.init(12); // pin being used for fan ( in this case 12)
 
-  digitalWrite(10, HIGH);
-  digitalWrite(actuator2.getPin(), HIGH);
-  actuator3.setPin(HIGH);
-    
+  digitalWrite(10, LOW);
+  digitalWrite(11, HIGH);
+  digitalWrite(12, HIGH);
 }
 
 void loop() {
-
-    //Serial.println("\nLoop1");
-    sensor1.read();
+    Serial.print("\nIn loop function\n");
+    //sensor1.read();
+    Serial.print("\nA");
     float temperature = sensor1.getTemperature();
+    Serial.print("\ntemp is ");
+    Serial.print(temperature);
     float humidity = sensor1.getHumidity();
+    Serial.print("\nhumidity is ");
+    Serial.print(humidity);
     uint16_t co2 = sensor1.getCO2();
+    Serial.print("\nco2 is ");
+    Serial.print(co2);
     unsigned long now = time(nullptr);
     
     //Actuator
@@ -216,15 +191,15 @@ void loop() {
     actuator2.toggle();
     actuator3.toggle();
 
-    //Serial.println("Loop2");
+    // //Turn on pins
+    // digitalWrite(10, HIGH);
+    // digitalWrite(11, HIGH);
+    // digitalWrite(12, HIGH);
+
+    Serial.println("\nLoop2");
     String responseData = sendData(temperature,humidity,co2,now);  // send off data
+    Serial.print("\nResponse data: ");
+    Serial.println(responseData);
     processResponse(responseData);
     delay(refreshRate*1000); // refresh rate        
 }
-
-
-
-
-
-
-
