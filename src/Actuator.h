@@ -3,45 +3,58 @@
 
 class Actuator {
 public:
-  Actuator() {}
-  Actuator(int pin) : pin(pin), status(false) {}
+	Actuator() {}
+	Actuator(int pin) : pin(pin), status(false) {}
 
-  void init(int pin) {
-    pinMode(pin, OUTPUT);
-    off();
-  }
+	void init(int pin) {
+		pinMode(pin, OUTPUT);
+		off();
+		Serial.print("we actually made it to the init function");
+	}
 
-  void on() {
-    digitalWrite(pin, HIGH);
-    status = true;
-  }
+	void toggle() {
+		Serial.print("\nToggling Pin");
+		Serial.print(pin);
 
-  void off() {
-    digitalWrite(pin, LOW);
-    status = false;
-  }
+		if (status) {
+			this->off();
+		} else {
+			this->on();
+		}
+	}
 
-  void toggle() {
-    if (status) {
-      off();
-    } else {
-      on();
-    }
-  }
+	bool getStatus() {
+		return status;
+	}
 
-  bool getStatus() {
-    return status;
-  }
+	void setStatus(bool newStatus) {
+		status = newStatus;
+		if(newStatus) {
+			this->on();
+		} else {
+			this->off(); 
+		}
+	}
 
-  bool getPin() {
-    return pin;
-  }
+	bool getPin() {
+		return pin;
+	}
 
-  void setPin(int level) {
-    digitalWrite(pin, level);
-  }
+	void setPin(bool level) {
+		digitalWrite(pin, level);
+	}
 
 private:
-  int pin;
-  bool status;
+	int pin;
+	bool status;
+
+	void on() {
+		digitalWrite(pin, HIGH);
+		status = true;
+	}
+
+	void off() {
+		digitalWrite(pin, LOW);
+		status = false;
+	}
 };

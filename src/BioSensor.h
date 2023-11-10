@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <SensirionI2CScd4x.h>
 #include <Wire.h>
-
+//todo clean up and remove junk functions
 class BioSensor {
 public:
     BioSensor() {
@@ -9,17 +9,18 @@ public:
     }
 
     void init() {
-        Serial.print("\nin bio Sensor init");
+        Serial.print("\nIn bio Sensor init");
         scd4x.begin(Wire);
 
+        //todo also figure out if this block is necessary. maybe start and stop only during readings?
         uint16_t error;
         char errorMessage[256];
-
         error = scd4x.stopPeriodicMeasurement();
         if (error) {
             handleErrorMessage("stopPeriodicMeasurement", error, errorMessage);
         }
 
+        //todo figure out if this block is necessary
         uint16_t serial0;
         uint16_t serial1;
         uint16_t serial2;
@@ -43,7 +44,7 @@ public:
         delay(100);
 
         uint16_t co2 = 0;
-        // float temperature = 0.0f;
+        // float temperature = 0.0f; //todo: check on if theres an f in the sample code
         // float humidity = 0.0f;
         float temperature = 0.0;
         float humidity = 0.0;
@@ -63,16 +64,19 @@ public:
             handleErrorMessage("readMeasurement", error, errorMessage);
         
         } else {
-            //Serial.print("Printing measurement");
-            co2Value = co2;
+            this->co2Value = co2;
+            this->temperatureValue = temperature;
+            this->humidityValue = humidity;
+
+            //Test code todo delete
+            Serial.print("\n\nPrinting measurement");
             Serial.print("\nCO2 Value:"); 
             Serial.print(co2);
-            temperatureValue = temperature;
             Serial.print("\t\tTemp Value: "); 
             Serial.print(temperature);
-            humidityValue = humidity;
             Serial.print("\tHumidity Value: "); 
             Serial.print(humidity);
+            Serial.print("\n");
         }
     }
 
