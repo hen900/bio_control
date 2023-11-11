@@ -8,20 +8,22 @@
 #include <Actuator.h>   
 #include <BioSensor.h>
 
-//Create Actuator and Sensor Objects
 Actuator actuator1;
 Actuator actuator2;
 Actuator actuator3;
 BioSensor sensor1; 
-String serverResponse; 
-const int refreshRate = 3; 
-int loopCounter = 0;
 
-//Network
+const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
+const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time
+const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings
+// const long  gmtOffset_sec = 0; //-5 hour offset for Eastern Standard Time
+// const int   daylightOffset_sec = 0; //1 hour offset for daylight savings
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
 const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
-const char* ntpServer  = "pool.ntp.org";  // NTP server address
+String serverResponse; 
+const int refreshRate = 3; 
+int loopCounter = 0;
 
 // Credentials
 // //Henry Wifi
@@ -42,21 +44,22 @@ const char *password = "noyesnonoyes"; //Enter your WIFI password
 
 //MISC TODOS 
 // figure out if I can take void out of all the function parameters 
-// go home and get esp32 for testing
-//test if actuator status changes on the server when I send updates in code 
+// move setupTime and setupWifi into synchTime and connectWifi functions with return type int, 
+// handle wifi dropping better 
+// sync time once a day (once a week?)
+// make buffer to hold previous readings in case of dropped connection. Hold up to 10? check memory capacity for reasonable number
 
-void setupTime(void) {
-	// //Todo: test this function and add to loop
-	// // Initialize and set the time
-	// configTime(0, 0, ntpServer); // UTC time; adjust the first two parameters for your time zone if needed
-	// // Wait until time is synchronized
-	// while (!time(nullptr)) {
-	// 	Serial.println("Waiting for time synchronization...");
-	// 	delay(1000);
-	// }
+void setupTime() {
+	// Initialize and set the time
+	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+	// Wait until time is synchronized
+	while (!time(nullptr)) {
+		Serial.println("Waiting for time synchronization...");
+		delay(1000);
+	}
 }
 
-void setupWifi(void) {
+void setupWifi() {
 	delay(3000);
 	Serial.println("Attempting Wifi Connection");
 	WiFi.begin(ssid, password);
@@ -68,16 +71,16 @@ void setupWifi(void) {
 	delay(1000);
 }
 
-void readData(void) {
+void readData() {
 	sensor1.read();
-	//this is a separate function so we can put any new sensors here (ultrasonic, float level, whatever)
+	//this is a separate function so we can put any new sensors here 
+	//(ultrasonic, float level, whatever)
 	//also call camera to take a pic here
 }
 
-String makeJson(void) {
+String makeJson() {
 	DynamicJsonDocument doc(512); //todo static??
 	String json;
-	unsigned long now = time(nullptr); 
  
 	doc["humidity"] = sensor1.getHumidity();
     doc["temperature"] = sensor1.getTemperature();
@@ -85,14 +88,14 @@ String makeJson(void) {
 	doc["actuator1Status"] =actuator1.getStatus(); 
     doc["actuator2Status"] = actuator2.getStatus();  
     doc["actuator3Status" ] = actuator3.getStatus(); 
-	doc["time"] = now;
+	doc["time"] = time(nullptr);
 
 	//Convert the DynamicJsonDocument into one coherent string "json"
 	serializeJson(doc, json);
 	return json;
 }
 
-void sendData(void){ 
+void sendData(){ 
 	String json = makeJson();
 	HTTPClient http;
 	http.begin(client, server_url);
@@ -126,18 +129,17 @@ void processResponse() {
 		return;
 	}
 
-	// Extract new values from the JSON document
 	String newActuator1Status = doc["actuator1Set"];
-	actuator1.setStatus(newActuator1Status);
 	String newActuator2Status = doc["actuator2Set"];
-	actuator2.setStatus(newActuator2Status);
 	String newActuator3Status = doc["actuator3Set"];
+
+	actuator1.setStatus(newActuator1Status);
+	actuator2.setStatus(newActuator2Status);
 	actuator3.setStatus(newActuator3Status);
 }
 
 void updateBehavior() {
 	//put enviro control logic here. make decisions based on sensor values
-	//actuator1.update
 }
 
 void setup() {
@@ -160,10 +162,15 @@ void loop() {
 
 	readData();
 	sendData();
-	//todo remove - this is a fake json response for testing
-	//serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
 	processResponse();
     updateBehavior();
 
     delay(refreshRate*1000);        
 }
+
+//Helpful Testing Snippets
+/*
+	//Fake json response for testing
+	serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
+
+*/
