@@ -16,8 +16,6 @@ BioSensor sensor1;
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time
 const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings
-// const long  gmtOffset_sec = 0; //-5 hour offset for Eastern Standard Time
-// const int   daylightOffset_sec = 0; //1 hour offset for daylight savings
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
 const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
