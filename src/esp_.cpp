@@ -14,7 +14,7 @@ Actuator actuator2;
 Actuator actuator3;
 BioSensor sensor1; 
 String serverResponse; 
-const int refreshRate = 10; 
+const int refreshRate = 3; 
 int loopCounter = 0;
 
 //Network
@@ -102,7 +102,7 @@ void sendData(void){
 	//Attempt to decode POST response (http code 0 means 0 errors)
 	if(httpCode > 0 && (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)) { 
 		serverResponse = http.getString(); 
-		Serial.print("Response: "); Serial.println(serverResponse);
+		//Serial.print("Response: "); Serial.println(serverResponse);
 	} else {
 		Serial.printf("\n[HTTP] POST... failed, error: %s", http.errorToString(httpCode).c_str());
 		serverResponse = "error";
@@ -112,8 +112,7 @@ void sendData(void){
 }
 
 void processResponse() {
-	Serial.print("\nIn process response function\n");
-
+	//Serial.print("\nIn process response function\n");
 	if(serverResponse == "error") { 
 		Serial.print("Invalid response, no actuator updates");
 		return; 
@@ -128,28 +127,20 @@ void processResponse() {
 	}
 
 	// Extract new values from the JSON document
-	bool newActuator1Status = doc["actuator1Status"];
+	String newActuator1Status = doc["actuator1Set"];
 	actuator1.setStatus(newActuator1Status);
-	bool newActuator2Status = doc["actuator2Status"];
+	String newActuator2Status = doc["actuator2Set"];
 	actuator2.setStatus(newActuator2Status);
-	bool newActuator3Status = doc["actuator3Status"];
+	String newActuator3Status = doc["actuator3Set"];
 	actuator3.setStatus(newActuator3Status);
-
-	// //test code
-	// Serial.print("\nNew actuator 1 status: ");
-	// Serial.print(newActuator1Status);
-	// Serial.print("\nNew actuator 2 status: ");
-	// Serial.print(newActuator2Status);
-	// Serial.print("\nNew actuator 3 status: ");
-	// Serial.print(newActuator3Status);
 }
 
 void updateBehavior() {
 	//put enviro control logic here. make decisions based on sensor values
+	//actuator1.update
 }
 
 void setup() {
-	Serial.print("\nIn setup function\n");
 	Serial.begin(115200); 
 
 	setupWifi();    
@@ -159,23 +150,20 @@ void setup() {
 	actuator1.init(10); 
 	actuator2.init(11);
 	actuator3.init(12); 
-
-	//test code
-	digitalWrite(10, LOW);
-	digitalWrite(11, HIGH);
-	digitalWrite(12, HIGH);
 }
 
 void loop() {
     loopCounter++;
-    Serial.print("\nLoop");
+    Serial.print("\n\nLoop");
     Serial.print(loopCounter);
 	Serial.print("\n----------------------------------------------------------\n");
 
 	readData();
 	sendData();
+	//todo remove - this is a fake json response for testing
+	//serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
 	processResponse();
     updateBehavior();
 
-    delay(refreshRate*1000); // refresh rate        
+    delay(refreshRate*1000);        
 }

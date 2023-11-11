@@ -4,57 +4,67 @@
 class Actuator {
 public:
 	Actuator() {}
-	Actuator(int pin) : pin(pin), status(false) {}
+	Actuator(int pin) : pin(pin), status("false"), actuatorName("") {}
 
 	void init(int pin) {
+		this->pin = pin;
+		this->status = "false";
+		this->actuatorName = "";
 		pinMode(pin, OUTPUT);
-		off();
-		Serial.print("we actually made it to the init function");
 	}
 
 	void toggle() {
 		Serial.print("\nToggling Pin");
 		Serial.print(pin);
 
-		if (status) {
-			this->off();
-		} else {
+		if (status == "false") {
 			this->on();
+		} else {
+			this->off();
 		}
 	}
 
-	bool getStatus() {
-		return status;
+	String getStatus() {
+		return this->status;
 	}
 
-	void setStatus(bool newStatus) {
-		status = newStatus;
-		if(newStatus) {
-			this->on();
-		} else {
-			this->off(); 
+	void setStatus(String newStatus) {
+		String oldStatus = this->status;
+		this->status = newStatus;
+
+		if(oldStatus != newStatus) {
+			if(newStatus == "true") {
+				this->on();
+			} else if(newStatus == "false") {
+				this->off(); 
+			} else {
+				Serial.print("\nInvalid new status: "); Serial.print(newStatus); 
+			}
 		}
 	}
 
 	bool getPin() {
-		return pin;
+		return this->pin;
 	}
 
 	void setPin(bool level) {
-		digitalWrite(pin, level);
+		digitalWrite(this->pin, level);
+	}
+
+	void on() {
+		Serial.print("\nTurning on actuator on pin"); Serial.print(this->pin);
+		digitalWrite(this->pin, HIGH);
+		this->status = "true";
+	}
+
+	void off() {
+		Serial.print("\nTurning off actuator on pin"); Serial.print(this->pin);
+		digitalWrite(this->pin, LOW);
+		this->status = "false";
 	}
 
 private:
 	int pin;
-	bool status;
-
-	void on() {
-		digitalWrite(pin, HIGH);
-		status = true;
-	}
-
-	void off() {
-		digitalWrite(pin, LOW);
-		status = false;
-	}
+	String status;
+	String actuatorName;
 };

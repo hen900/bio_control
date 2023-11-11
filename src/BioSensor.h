@@ -11,25 +11,25 @@ public:
     void init() {
         Serial.print("\nIn bio Sensor init");
         scd4x.begin(Wire);
-
-        //todo also figure out if this block is necessary. maybe start and stop only during readings?
         uint16_t error;
         char errorMessage[256];
-        error = scd4x.stopPeriodicMeasurement();
-        if (error) {
-            handleErrorMessage("stopPeriodicMeasurement", error, errorMessage);
-        }
 
-        //todo figure out if this block is necessary
-        uint16_t serial0;
-        uint16_t serial1;
-        uint16_t serial2;
-        error = scd4x.getSerialNumber(serial0, serial1, serial2);
-        if (error) {
-            handleErrorMessage("getSerialNumber", error, errorMessage);
-        } else {
-            printSerialNumber(serial0, serial1, serial2);
-        }
+        // //todo also figure out if this block is necessary. maybe start and stop only during readings?
+        // error = scd4x.stopPeriodicMeasurement();
+        // if (error) {
+        //     handleErrorMessage("stopPeriodicMeasurement", error, errorMessage);
+        // }
+
+        // //todo figure out if this block is necessary
+        // uint16_t serial0;
+        // uint16_t serial1;
+        // uint16_t serial2;
+        // error = scd4x.getSerialNumber(serial0, serial1, serial2);
+        // if (error) {
+        //     handleErrorMessage("getSerialNumber", error, errorMessage);
+        // } else {
+        //     printSerialNumber(serial0, serial1, serial2);
+        // }
 
         error = scd4x.startPeriodicMeasurement();
         if (error) {
@@ -38,16 +38,15 @@ public:
     }
 
     void read() {
+        //todo: explore turning on scd4x.startPeriodicMeasurement() at the beginning of the function and stopping it at the end
         //Serial.print("Reading measurement");
         uint16_t error;
         char errorMessage[256];
         delay(100);
 
         uint16_t co2 = 0;
-        // float temperature = 0.0f; //todo: check on if theres an f in the sample code
-        // float humidity = 0.0f;
-        float temperature = 0.0;
-        float humidity = 0.0;
+        float temperature = 0.0f;
+        float humidity = 0.0f;
         bool isDataReady = false;
 
         error = scd4x.getDataReadyFlag(isDataReady);
@@ -99,7 +98,7 @@ private:
     float humidityValue;
 
     void handleErrorMessage(const char* operation, uint16_t error, char* errorMessage) {
-        Serial.print("Error trying to execute ");
+        Serial.print("Sensor read error trying to execute ");
         Serial.print(operation);
         Serial.print("(): ");
         errorToString(error, errorMessage, 256);
