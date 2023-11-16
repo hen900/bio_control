@@ -4,11 +4,11 @@
 class Actuator {
 public:
 	Actuator() {}
-	Actuator(int pin) : pin(pin), status("false"), actuatorName("") {}
+	Actuator(int pin) : pin(pin), status(false), actuatorName("") {}
 
 	void init(int pin) {
 		this->pin = pin;
-		this->status = "false";
+		this->status = false;
 		this->actuatorName = "";
 		pinMode(pin, OUTPUT);
 	}
@@ -17,30 +17,35 @@ public:
 		Serial.print("\nToggling Pin");
 		Serial.print(pin);
 
-		if (status == "false") {
+		if (status = false) {
 			this->on();
 		} else {
 			this->off();
 		}
 	}
 
-	String getStatus() {
+	boolean getStatus() {
 		return this->status;
 	}
 
 	void setStatus(String newStatus) {
-		String oldStatus = this->status;
-		this->status = newStatus;
+		boolean newStatusBool;
 
-		if(oldStatus != newStatus) {
-			if(newStatus == "true") {
-				this->on();
-			} else if(newStatus == "false") {
-				this->off(); 
-			} else {
-				Serial.print("\nInvalid new status: "); Serial.print(newStatus); 
-			}
+		if(newStatus == "true") {
+			this->on();
+			this->status = true;
+
+		} else if (newStatus == "false") {
+			this->off();
+			this->status = false;
+		} else {
+			Serial.print("\nInvalid new status: "); Serial.print(newStatus);
 		}
+
+		Serial.print("Status set to ");
+		Serial.print(this->status);
+		Serial.print(" on pin ");
+		Serial.print(this->pin);
 	}
 
 	bool getPin() {
@@ -54,17 +59,25 @@ public:
 	void on() {
 		Serial.print("\nTurning on actuator on pin"); Serial.print(this->pin);
 		digitalWrite(this->pin, HIGH);
-		this->status = "true";
+		this->status = true;
 	}
 
 	void off() {
 		Serial.print("\nTurning off actuator on pin"); Serial.print(this->pin);
 		digitalWrite(this->pin, LOW);
-		this->status = "false";
+		this->status = false;
 	}
 
 private:
 	int pin;
-	String status;
+	boolean status;
 	String actuatorName;
 };
+
+//TEST CODE
+// Serial.print("\nOld Status");
+		// Serial.print(oldStatus);
+		// Serial.print("\nNew Status");
+		// Serial.print(newStatus);
+		// Serial.print("\nThis Status");
+		// Serial.println(this->status);

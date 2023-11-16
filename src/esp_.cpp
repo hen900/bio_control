@@ -11,11 +11,13 @@
 Actuator actuator1;
 Actuator actuator2;
 Actuator actuator3;
+Actuator actuator4;
+Actuator actuator5;
 BioSensor sensor1; 
 
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
-const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time
-const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings
+const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
+const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
 const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
@@ -59,11 +61,13 @@ void setupTime() {
 
 void setupWifi() {
 	delay(3000);
-	Serial.println("Attempting Wifi Connection");
+	Serial.println("\nAttempting Wifi Connection to ");
+    Serial.print(ssid);
+	Serial.println("Network");
 	WiFi.begin(ssid, password);
 	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
 		Serial.print("...");
+		delay(500);
 	}
 	Serial.println("WiFi connected");
 	delay(1000);
@@ -86,6 +90,8 @@ String makeJson() {
 	doc["actuator1Status"] =actuator1.getStatus(); 
     doc["actuator2Status"] = actuator2.getStatus();  
     doc["actuator3Status" ] = actuator3.getStatus(); 
+	doc["actuator4Status"] = actuator4.getStatus();  
+    doc["actuator5Status" ] = actuator5.getStatus(); 
 	doc["time"] = time(nullptr);
 
 	//Convert the DynamicJsonDocument into one coherent string "json"
@@ -130,10 +136,14 @@ void processResponse() {
 	String newActuator1Status = doc["actuator1Set"];
 	String newActuator2Status = doc["actuator2Set"];
 	String newActuator3Status = doc["actuator3Set"];
+	String newActuator4Status = doc["actuator4Set"];
+	String newActuator5Status = doc["actuator5Set"];
 
 	actuator1.setStatus(newActuator1Status);
 	actuator2.setStatus(newActuator2Status);
 	actuator3.setStatus(newActuator3Status);
+	actuator4.setStatus(newActuator4Status);
+	actuator5.setStatus(newActuator5Status);
 }
 
 void updateBehavior() {
@@ -147,9 +157,11 @@ void setup() {
 	setupTime();
 		
 	sensor1.init(); 
-	actuator1.init(10); 
-	actuator2.init(11);
-	actuator3.init(12); 
+	actuator1.init(9); 		//Atomizer
+	actuator2.init(10);		//Lights
+	actuator3.init(11); 	//Small Fan
+	actuator4.init(12); 	//Big Fan
+	actuator5.init(13); 	//Heating Pad
 }
 
 void loop() {
@@ -160,8 +172,17 @@ void loop() {
 
 	readData();
 	sendData();
+	Serial.println("\nServer Response");
+	Serial.print(serverResponse);
 	processResponse();
     updateBehavior();
+
+	Serial.println("Pin Statuses");
+	Serial.println(actuator1.getStatus());
+	Serial.println(actuator2.getStatus());
+	Serial.println(actuator3.getStatus());
+	Serial.println(actuator4.getStatus());
+	Serial.println(actuator5.getStatus());
 
     delay(refreshRate*1000);        
 }
@@ -170,5 +191,9 @@ void loop() {
 /*
 	//Fake json response for testing
 	serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
+
+	// actuator1.on();
+	// actuator2.on();
+	// actuator3.on();
 
 */
