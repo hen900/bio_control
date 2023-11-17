@@ -9,29 +9,31 @@ public:
     }
 
     void init() {
-        Serial.print("\nIn bio Sensor init");
-        scd4x.begin(Wire);
+        //Serial.print("\nIn bio Sensor init");
+        SensirionI2CScd4x testScd4x;
+        this->scd4x = testScd4x;
+        this->scd4x.begin(Wire);
         uint16_t error;
         char errorMessage[256];
 
-        // //todo also figure out if this block is necessary. maybe start and stop only during readings?
-        // error = scd4x.stopPeriodicMeasurement();
-        // if (error) {
-        //     handleErrorMessage("stopPeriodicMeasurement", error, errorMessage);
-        // }
+        //todo also figure out if this block is necessary. maybe start and stop only during readings?
+        error = this->scd4x.stopPeriodicMeasurement();
+        if (error) {
+            handleErrorMessage("stopPeriodicMeasurement", error, errorMessage);
+        }
 
-        // //todo figure out if this block is necessary
-        // uint16_t serial0;
-        // uint16_t serial1;
-        // uint16_t serial2;
-        // error = scd4x.getSerialNumber(serial0, serial1, serial2);
-        // if (error) {
-        //     handleErrorMessage("getSerialNumber", error, errorMessage);
-        // } else {
-        //     printSerialNumber(serial0, serial1, serial2);
-        // }
+        //todo figure out if this block is necessary
+        uint16_t serial0;
+        uint16_t serial1;
+        uint16_t serial2;
+        error = this->scd4x.getSerialNumber(serial0, serial1, serial2);
+        if (error) {
+            handleErrorMessage("getSerialNumber", error, errorMessage);
+        } else {
+            printSerialNumber(serial0, serial1, serial2);
+        }
 
-        error = scd4x.startPeriodicMeasurement();
+        error = this->scd4x.startPeriodicMeasurement();
         if (error) {
             handleErrorMessage("startPeriodicMeasurement", error, errorMessage);
         }
@@ -48,21 +50,24 @@ public:
         float temperature = 0.0f;
         float humidity = 0.0f;
         bool isDataReady = false;
-
-        error = scd4x.getDataReadyFlag(isDataReady);
+        Serial.print("\nA");
+        error = this->scd4x.getDataReadyFlag(isDataReady);
         if (error) {
             handleErrorMessage("getDataReadyFlag", error, errorMessage);
             return;
         }
         if (!isDataReady) {
+            Serial.print("\nB");
             return;
         }
 
-        error = scd4x.readMeasurement(co2, temperature, humidity);
+        Serial.print("\nC");
+        error = this->scd4x.readMeasurement(co2, temperature, humidity);
         if (error) {
             handleErrorMessage("readMeasurement", error, errorMessage);
         
         } else {
+            Serial.print("\nD");
             this->co2Value = co2;
             this->temperatureValue = temperature;
             this->humidityValue = humidity;
@@ -91,12 +96,6 @@ public:
         return humidityValue;
     }
 
-private:
-    SensirionI2CScd4x scd4x;
-    uint16_t co2Value;
-    float temperatureValue;
-    float humidityValue;
-
     void handleErrorMessage(const char* operation, uint16_t error, char* errorMessage) {
         Serial.print("Sensor read error trying to execute ");
         Serial.print(operation);
@@ -119,4 +118,10 @@ private:
         Serial.print(value < 16 ? "0" : "");
         Serial.print(value, HEX);
     }
+
+private:
+    SensirionI2CScd4x scd4x;
+    uint16_t co2Value;
+    float temperatureValue;
+    float humidityValue;
 };
