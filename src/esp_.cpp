@@ -8,12 +8,22 @@
 #include <Actuator.h>   
 #include <BioSensor.h>
 
-Actuator actuator1;
-Actuator actuator2;
-Actuator actuator3;
-Actuator actuator4;
-Actuator actuator5;
+Actuator humidifier;
+Actuator atomizer;
+Actuator lights_blue;
+Actuator fan_small;
+Actuator fan_big;
+Actuator heater;
 BioSensor sensor1; 
+
+//PIN DEFS
+#define HUMIDIFIER 6
+#define ATOMIZER 9
+#define LIGHTS_BLUE 10
+//#define LIGHTS_UV  
+#define FAN_SMALL 11
+#define FAN_BIG 12
+#define HEATER 13
 
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
@@ -87,11 +97,11 @@ String makeJson() {
 	doc["humidity"] = sensor1.getHumidity();
     doc["temperature"] = sensor1.getTemperature();
     doc["co2"] = sensor1.getCO2();
-	doc["actuator1Status"] =actuator1.getStatus(); 
-    doc["actuator2Status"] = actuator2.getStatus();  
-    doc["actuator3Status" ] = actuator3.getStatus(); 
-	doc["actuator4Status"] = actuator4.getStatus();  
-    doc["actuator5Status" ] = actuator5.getStatus(); 
+	doc["actuator1Status"] =atomizer.getStatus(); 
+    doc["actuator2Status"] = lights_blue.getStatus();  
+    doc["actuator3Status" ] = fan_small.getStatus(); 
+	doc["actuator4Status"] = fan_big.getStatus();  
+    doc["actuator5Status" ] = heater.getStatus(); 
 	doc["time"] = time(nullptr);
 
 	//Convert the DynamicJsonDocument into one coherent string "json"
@@ -139,32 +149,61 @@ void processResponse() {
 	String newActuator4Status = doc["actuator4Set"];
 	String newActuator5Status = doc["actuator5Set"];
 
-	actuator1.setStatus(newActuator1Status);
-	actuator2.setStatus(newActuator2Status);
-	actuator3.setStatus(newActuator3Status);
-	actuator4.setStatus(newActuator4Status);
-	actuator5.setStatus(newActuator5Status);
+	atomizer.setStatus(newActuator1Status);
+	lights_blue.setStatus(newActuator2Status);
+	fan_small.setStatus(newActuator3Status);
+	fan_big.setStatus(newActuator4Status);
+	heater.setStatus(newActuator5Status);
 }
 
 void updateBehavior() {
 	//put enviro control logic here. make decisions based on sensor values
 }
 
+void autonomousSequence() {
+	//Phase 1
+	//Turn on lights 
+	lights_blue.on();
+	//Turn on humidifier
+	humidifier.on();
+	//Turn on small fan
+	fan_small.on();
+	//Delay 1 min
+	delay(60000);
+
+	//Phase 2
+	//Turn off lights 
+	lights_blue.off();
+	//Turn off humidifier
+	humidifier.off();
+	//Turn on small fan
+	fan_small.off();
+	//Turn on big fan
+	fan_big.on();
+	//delay 1 min(); 
+	delay(60000);
+	//Turn off big fan; 
+	fan_big.off();
+}
+
 void setup() {
 	Serial.begin(115200); 
 
+	sensor1.init(); 
+	humidifier.init(HUMIDIFIER);	//Humidifier
+	atomizer.init(ATOMIZER); 		//Atomizer
+	lights_blue.init(LIGHTS_BLUE);	//Lights
+	fan_small.init(FAN_SMALL); 		//Small Fan
+	fan_big.init(FAN_BIG); 			//Big Fan
+	heater.init(HEATER); 			//Heating Pad
+
+	autonomousSequence();
 	setupWifi();    
 	setupTime();
-		
-	sensor1.init(); 
-	actuator1.init(9); 		//Atomizer
-	actuator2.init(10);		//Lights
-	actuator3.init(11); 	//Small Fan
-	actuator4.init(12); 	//Big Fan
-	actuator5.init(13); 	//Heating Pad
 }
 
 void loop() {
+
     loopCounter++;
     Serial.print("\n\nLoop");
     Serial.print(loopCounter);
@@ -178,11 +217,11 @@ void loop() {
     updateBehavior();
 
 	Serial.println("Pin Statuses");
-	Serial.println(actuator1.getStatus());
-	Serial.println(actuator2.getStatus());
-	Serial.println(actuator3.getStatus());
-	Serial.println(actuator4.getStatus());
-	Serial.println(actuator5.getStatus());
+	Serial.println(atomizer.getStatus());
+	Serial.println(lights_blue.getStatus());
+	Serial.println(fan_small.getStatus());
+	Serial.println(fan_big.getStatus());
+	Serial.println(heater.getStatus());
 
     delay(refreshRate*1000);        
 }
@@ -192,8 +231,8 @@ void loop() {
 	//Fake json response for testing
 	serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
 
-	// actuator1.on();
-	// actuator2.on();
-	// actuator3.on();
+	// atomizer.on();
+	// lights_blue.on();
+	// fan_small.on();
 
 */
