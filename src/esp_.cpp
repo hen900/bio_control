@@ -8,7 +8,6 @@
 #include <Actuator.h>   
 #include <BioSensor.h>
 
-Actuator humidifier;
 Actuator atomizer;
 Actuator lights_blue;
 Actuator fan_small;
@@ -17,11 +16,10 @@ Actuator heater;
 BioSensor sensor1; 
 
 //PIN DEFS
-#define HUMIDIFIER 6
-#define ATOMIZER 9
-#define LIGHTS_BLUE 10
+#define ATOMIZER 26
+#define LIGHTS_BLUE 27
 //#define LIGHTS_UV  
-#define FAN_SMALL 11
+#define FAN_SMALL 14
 #define FAN_BIG 12
 #define HEATER 13
 
@@ -161,36 +159,65 @@ void updateBehavior() {
 }
 
 void autonomousSequence() {
-	//Phase 1
-	//Turn on lights 
+	// lights_blue.on();
+	// atomizer.on();
+	// fan_small.on();
+	// fan_big.on();
+	// heater.on();
+
+	//Phase 1: Turn on lights, humidifier, and small fan for
 	lights_blue.on();
-	//Turn on humidifier
-	humidifier.on();
-	//Turn on small fan
+	atomizer.on();
 	fan_small.on();
-	//Delay 1 min
+
+	//Establish original values
+	readData();
+	float originalHumidity = sensor1.getHumidity();
+	float newHumidity = 0.0; 
+
+	// while (originalHumidity == 0.0) {
+	// 	Serial.println("Attempting to read new humidity...");
+	// 	originalHumidity = sensor1.getHumidity();
+	// 	delay(5000);
+	// }
+	
+	Serial.print("Original humidity is: ");
+	Serial.println(originalHumidity);
 	delay(60000);
 
-	//Phase 2
-	//Turn off lights 
+	// //Wait for humidity to increase by 50%
+	// Serial.println("\nWaiting for humidity to increase by 50%");
+	// while(newHumidity < (originalHumidity * 1.5)) {
+	// 	delay(10000);
+	// 	readData();
+	// 	sendData();
+	// 	newHumidity = sensor1.getHumidity();
+	// }
+
+	//Phase 2: Turn off lights, humidifier, and small fan; clear the humidity
 	lights_blue.off();
-	//Turn off humidifier
-	humidifier.off();
-	//Turn on small fan
+	atomizer.off();
 	fan_small.off();
-	//Turn on big fan
 	fan_big.on();
-	//delay 1 min(); 
 	delay(60000);
-	//Turn off big fan; 
+
+	//Wait for humidity to decrease by 50%
+	Serial.println("\nWaiting for humidity to decrease by 50%");
+	while(newHumidity > originalHumidity) {
+		delay(10000);
+		readData();
+		sendData();           
+		newHumidity = sensor1.getHumidity();
+	}
+
 	fan_big.off();
+	Serial.print("Autonomous cycle complete");
 }
 
 void setup() {
 	Serial.begin(115200); 
 
 	sensor1.init(); 
-	humidifier.init(HUMIDIFIER);	//Humidifier
 	atomizer.init(ATOMIZER); 		//Atomizer
 	lights_blue.init(LIGHTS_BLUE);	//Lights
 	fan_small.init(FAN_SMALL); 		//Small Fan
