@@ -8,8 +8,6 @@
 #include <Actuator.h>   
 #include <BioSensor.h>
 
-//Testing project commit from subfolder
-
 Actuator atomizer;
 Actuator lights_blue;
 Actuator fan_small;
@@ -53,7 +51,6 @@ const char *password = "noyesnonoyes"; //Enter your WIFI password
 // const char *password = "3*L5345m"; //Enter your WIFI password
 
 //MISC TODOS 
-// figure out if I can take void out of all the function parameters 
 // move setupTime and setupWifi into synchTime and connectWifi functions with return type int, 
 // handle wifi dropping better 
 // sync time once a day (once a week?)
