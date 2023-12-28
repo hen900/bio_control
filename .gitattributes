@@ -1,2 +1,3 @@
 # Auto detect text files and perform LF normalization
+# This commit is only bc the f message is annoying me everytime I look at github
 * text=auto
