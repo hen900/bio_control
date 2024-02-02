@@ -9,14 +9,18 @@
 #include "soc/rtc_cntl_reg.h"
 #include <Wire.h>
 
-
 // Network Info
 const char *ssid = "kessa"; //Enter your WIFI ssid
 const char *password = "noyesnonoyes"; //Enter your WIFI password
 const int serverPort = 3603;
 WiFiClient client;
-String serverName = "3.21.173.70";
+String serverName = "mykologic.com";
 String serverPath = "/photoUpload"; 
+
+//NTP time values 
+const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
+const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
+const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
 
 //Timer Values
 const int timerInterval = 10000;    // time between each HTTP POST image
@@ -35,7 +39,6 @@ unsigned long previousMillis = 0;   // last time image was sent
 #define FILE_PHOTO_PATH "/photo.jpg"
 
 #define CAMERA_MODEL_AI_THINKER
-
 #if defined(CAMERA_MODEL_AI_THINKER)
 	#define PWDN_GPIO_NUM     32
 	#define RESET_GPIO_NUM    -1
@@ -57,17 +60,41 @@ unsigned long previousMillis = 0;   // last time image was sent
   	#error "Camera model not selected"
 #endif
 
-/* The SMTP Session object used for Email sending */
-SMTPSession smtp;
+SMTPSession smtp;		//The SMTP Session object used for Email sending
+void smtpCallback(SMTP_Status status);	//Callback function to get the Email sending status
 
-/* Callback function to get the Email sending status */
-void smtpCallback(SMTP_Status status);
+void setupTime() {
+	// Initialize and set the time
+	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+	// Wait until time is synchronized
+	while (!time(nullptr)) {
+		Serial.println("Waiting for time synchronization...");
+		delay(1000);
+	}
+}
 
-// Capture Photo and Save it to LittleFS
-void capturePhotoSaveLittleFS( void ) {
+void setupWifi() {
+	delay(3000);
+	Serial.println("\nAttempting Wifi Connection to ");
+    Serial.print(ssid);
+	Serial.println("Network");
+	WiFi.begin(ssid, password);
+	while (WiFi.status() != WL_CONNECTED) {
+		Serial.print("...");
+		delay(500);
+	}
+	Serial.println("WiFi connected");
+	delay(1000);
+}
+
+void setupCam() {
+	//Todo transfer from main setup
+}
+
+void capturePhotoSaveLittleFS() {
+
 	// Dispose first pictures because of bad quality
 	camera_fb_t* fb = NULL;
-	// Skip first 3 frames (increase/decrease number as needed).
 	for (int i = 0; i < 3; i++) {
 		fb = esp_camera_fb_get();
 		esp_camera_fb_return(fb);
@@ -104,12 +131,12 @@ void capturePhotoSaveLittleFS( void ) {
 	esp_camera_fb_return(fb);
 }
 
-String sendPhoto() {
+String postJPGPhoto() { //last photo
 	String getAll;
 	String getBody;
 
 	camera_fb_t * fb = NULL;
-	fb = esp_camera_fb_get();
+	fb = esp_camera_fb_get();	//what is this line doing??? 
 	if(!fb) {
 		Serial.println("Camera capture failed");
 		esp_camera_fb_return(fb);
@@ -122,29 +149,33 @@ String sendPhoto() {
 
 	if (client.connect(serverName.c_str(), serverPort)) {
 		Serial.println("Connection successful!");    
-		String head = "--RandomNerdTutorials\r\nContent-Disposition: form-data; name=\"imageFile\"; filename=\"esp32-cam.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
-		String tail = "\r\n--RandomNerdTutorials--\r\n";
+		String head = "--image\r\nContent-Disposition: form-data; name=\"imageFile\"; filename=\"mushroomPic.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
+		String tail = "\r\n--image--\r\n";
 
 		uint32_t imageLen = fb->len;
 		uint32_t extraLen = head.length() + tail.length();
 		uint32_t totalLen = imageLen + extraLen;
 	
-		client.println("POST " + serverPath + " HTTP/1.1");
-		client.println("Host: " + serverName);
-		client.println("Content-Length: " + String(totalLen));
-		client.println("Content-Type: multipart/form-data; boundary=RandomNerdTutorials");
+		client.print("POST "); 
+		client.print(serverPath); 
+		client.println(" HTTP/1.1");
+		client.print("Host: ");
+		client.println(serverName);
+		client.print("Content-Length: ");
+		client.println(String(totalLen));
+		client.println("Content-Type: multipart/form-data; boundary=image");
 		client.println();
 		client.print(head);
-	
+
 		uint8_t *fbBuf = fb->buf;
-		size_t fbLen = fb->len;
-		for (size_t n=0; n<fbLen; n=n+1024) {
-		if (n+1024 < fbLen) {
+		size_t fileLen = fb->len;
+		for (size_t n=0; n<fileLen; n=n+1024) {
+		if (n+1024 < fileLen) {
 			client.write(fbBuf, 1024);
 			fbBuf += 1024;
 		}
-		else if (fbLen%1024>0) {
-			size_t remainder = fbLen%1024;
+		else if (fileLen%1024>0) {
+			size_t remainder = fileLen%1024;
 			client.write(fbBuf, remainder);
 		}
 		}   
@@ -174,179 +205,91 @@ String sendPhoto() {
 		Serial.println();
 		client.stop();
 		Serial.println(getBody);
-	}
-	else {
-		getBody = "Connection to " + serverName +  " failed.";
+	} else {
 		esp_camera_fb_return(fb);
-		Serial.println(getBody);
+		Serial.print("Connection to ");
+		Serial.print(serverName);
+		Serial.println(" failed.");
 	}
 	return getBody;
 }
 
-// //FUNCTION IN PROGRESS
-// String sendJPG() {
-// 	String getAll;
-// 	String getBody;
+void sendPhotoEmail( void ) {
+	smtp.debug(1); //Enable debug in serial port (1 = debug, 0 = no feedback)
+	smtp.callback(smtpCallback);
 
-// 	// camera_fb_t * fb = NULL;
-// 	// fb = esp_camera_fb_get();
-// 	// if(!fb) {
-// 	// 	Serial.println("Camera capture failed");
-// 	// 	esp_camera_fb_return(fb);
-// 	// 	delay(1000);
-// 	// 	ESP.restart();
-// 	// }
+	Session_Config config;	//Declare the session config data TODO figure out what this means???
 	
-// 	Serial.println("Connecting to server: " + serverName);
+	/*Set the NTP config time
+	For times east of the Prime Meridian use 0-12
+	For times west of the Prime Meridian add 12 to the offset.
+	Ex. American/Denver GMT would be -6. 6 + 12 = 18
+	See https://en.wikipedia.org/wiki/Time_zone for a list of the GMT/UTC timezone offsets
+	*/
+	config.time.ntp_server = F("pool.ntp.org,time.nist.gov");
+	config.time.gmt_offset = 0;
+	config.time.day_light_offset = 1;
 
-// 	if (client.connect(serverName.c_str(), serverPort)) {
-// 		Serial.println("Connection successful!");    
-// 		String head = "--RandomNerdTutorials\r\nContent-Disposition: form-data; name=\"imageFile\"; filename=\"esp32-cam.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
-// 		String tail = "\r\n--RandomNerdTutorials--\r\n";
+	/* Set the session config */
+	config.server.host_name = smtpServer;
+	config.server.port = smtpServerPort;
+	config.login.email = emailSenderAccount;
+	config.login.password = emailSenderPassword;
+	config.login.user_domain = "";
 
-// 		uint32_t imageLen = fb->len;
-// 		uint32_t 
-// 		uint32_t extraLen = head.length() + tail.length();
-// 		uint32_t totalLen = imageLen + extraLen;
-	
-// 		client.println("POST " + serverPath + " HTTP/1.1");
-// 		client.println("Host: " + serverName);
-// 		client.println("Content-Length: " + String(totalLen));
-// 		client.println("Content-Type: multipart/form-data; boundary=RandomNerdTutorials");
-// 		client.println();
-// 		client.print(head);
-	
-// 		uint8_t *fbBuf = fb->buf;
-// 		size_t fbLen = fb->len;
-// 		for (size_t n=0; n<fbLen; n=n+1024) {
-// 		if (n+1024 < fbLen) {
-// 			client.write(fbBuf, 1024);
-// 			fbBuf += 1024;
-// 		}
-// 		else if (fbLen%1024>0) {
-// 			size_t remainder = fbLen%1024;
-// 			client.write(fbBuf, remainder);
-// 		}
-// 		}   
-// 		client.print(tail);
-		
-// 		esp_camera_fb_return(fb);
-		
-// 		int timoutTimer = 10000;
-// 		long startTimer = millis();
-// 		boolean state = false;
-		
-// 		while ((startTimer + timoutTimer) > millis()) {
-// 		Serial.print(".");
-// 		delay(100);      
-// 		while (client.available()) {
-// 			char c = client.read();
-// 			if (c == '\n') {
-// 			if (getAll.length()==0) { state=true; }
-// 			getAll = "";
-// 			}
-// 			else if (c != '\r') { getAll += String(c); }
-// 			if (state==true) { getBody += String(c); }
-// 			startTimer = millis();
-// 		}
-// 		if (getBody.length()>0) { break; }
-// 		}
-// 		Serial.println();
-// 		client.stop();
-// 		Serial.println(getBody);
-// 	}
-// 	else {
-// 		getBody = "Connection to " + serverName +  " failed.";
-// 		esp_camera_fb_return(fb);
-// 		Serial.println(getBody);
-// 	}
-// 	return getBody;
-// }
+	/* Declare the message class */
+	SMTP_Message message;
 
-// void sendPhotoEmail( void ) {
-// 	/* Enable the debug via Serial port
-// 	 * none debug or 0
-// 	 * basic debug or 1
-// 	 */ 
-// 	smtp.debug(1);
+	/* Enable the chunked data transfer with pipelining for large message if server supported */
+	message.enable.chunking = true;
 
-// 	/* Set the callback function to get the sending results */
-// 	smtp.callback(smtpCallback);
+	/* Set the message headers */
+	message.sender.name = "ESP32-CAM";
+	message.sender.email = emailSenderAccount;
 
-// 	/* Declare the session config data */
-// 	Session_Config config;
-	
-// 	/*Set the NTP config time
-// 	For times east of the Prime Meridian use 0-12
-// 	For times west of the Prime Meridian add 12 to the offset.
-// 	Ex. American/Denver GMT would be -6. 6 + 12 = 18
-// 	See https://en.wikipedia.org/wiki/Time_zone for a list of the GMT/UTC timezone offsets
-// 	*/
-// 	config.time.ntp_server = F("pool.ntp.org,time.nist.gov");
-// 	config.time.gmt_offset = 0;
-// 	config.time.day_light_offset = 1;
+	message.subject = emailSubject;
+	message.addRecipient("Kessa", emailRecipient);
 
-// 	/* Set the session config */
-// 	config.server.host_name = smtpServer;
-// 	config.server.port = smtpServerPort;
-// 	config.login.email = emailSenderAccount;
-// 	config.login.password = emailSenderPassword;
-// 	config.login.user_domain = "";
+	String htmlMsg = "<h2>New photo captured with ESP32-CAM.</h2>";
+	message.html.content = htmlMsg.c_str();
+	message.html.charSet = "utf-8";
+	message.html.transfer_encoding = Content_Transfer_Encoding::enc_qp;
 
-// 	/* Declare the message class */
-// 	SMTP_Message message;
+	message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_normal;
+	message.response.notify = esp_mail_smtp_notify_success | esp_mail_smtp_notify_failure | esp_mail_smtp_notify_delay;
 
-// 	/* Enable the chunked data transfer with pipelining for large message if server supported */
-// 	message.enable.chunking = true;
+	/* The attachment data item */
+	SMTP_Attachment att;
 
-// 	/* Set the message headers */
-// 	message.sender.name = "ESP32-CAM";
-// 	message.sender.email = emailSenderAccount;
+	/** Set the attachment info e.g. 
+	 * file name, MIME type, file path, file storage type,
+	 * transfer encoding and content encoding
+	 */
+	att.descr.filename = FILE_PHOTO;
+	att.descr.mime = "image/png"; 
+	att.file.path = FILE_PHOTO_PATH;
+	att.file.storage_type = esp_mail_file_storage_type_flash;
+	att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
 
-// 	message.subject = emailSubject;
-// 	message.addRecipient("Kessa", emailRecipient);
+	/* Add attachment to the message */
+	message.addAttachment(att);
 
-// 	String htmlMsg = "<h2>New photo captured with ESP32-CAM.</h2>";
-// 	message.html.content = htmlMsg.c_str();
-// 	message.html.charSet = "utf-8";
-// 	message.html.transfer_encoding = Content_Transfer_Encoding::enc_qp;
+	/* Connect to server with the session config */
+	if (!smtp.connect(&config))
+		return;
 
-// 	message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_normal;
-// 	message.response.notify = esp_mail_smtp_notify_success | esp_mail_smtp_notify_failure | esp_mail_smtp_notify_delay;
-
-// 	/* The attachment data item */
-// 	SMTP_Attachment att;
-
-// 	/** Set the attachment info e.g. 
-// 	 * file name, MIME type, file path, file storage type,
-// 	 * transfer encoding and content encoding
-// 	 */
-// 	att.descr.filename = FILE_PHOTO;
-// 	att.descr.mime = "image/png"; 
-// 	att.file.path = FILE_PHOTO_PATH;
-// 	att.file.storage_type = esp_mail_file_storage_type_flash;
-// 	att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-
-// 	/* Add attachment to the message */
-// 	message.addAttachment(att);
-
-// 	/* Connect to server with the session config */
-// 	if (!smtp.connect(&config))
-// 		return;
-
-// 	/* Start sending the Email and close the session */
-// 	if (!MailClient.sendMail(&smtp, &message, true)) {
-// 		Serial.print("Error sending Email, " );
-// 		Serial.println(smtp.errorReason());
-// 	}
-// }
+	/* Start sending the Email and close the session */
+	if (!MailClient.sendMail(&smtp, &message, true)) {
+		Serial.print("Error sending Email, " );
+		Serial.println(smtp.errorReason());
+	}
+}
 
 // Callback function to get the Email sending status
 void smtpCallback(SMTP_Status status){
-	/* Print the current status */
+
 	Serial.println(status.info());
 
-	/* Print the sending result */
 	if (status.success())
 	{
 		Serial.println("----------------");
@@ -375,30 +318,16 @@ void smtpCallback(SMTP_Status status){
 }
 
 void setup() {
-
+	//TODO test removing brownout detection. From sample code
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
 	
-	Serial.begin(115200);
-	Serial.println();
-
-	//Loop to give time to connect 
-	
-	// Connect to Wi-Fi
-	WiFi.begin(ssid, password);
-	Serial.print("Connecting to WiFi...");
-	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
-		Serial.print(".");
-	}
-	Serial.println();
-	
-	// Print ESP32 Local IP Address
-	Serial.print("IP Address: http://");
-	Serial.println(WiFi.localIP());
-
-	// Init filesystem
+	Serial.begin(115200); 
+	setupTime();
+	setupWifi();
+	setupCam();
 	ESP_MAIL_DEFAULT_FLASH_FS.begin();
-	
+
+	//Todo: Move here onward into setupCam block after everything else has been confirmed to work physically
 	camera_config_t config;
 	config.ledc_channel = LEDC_CHANNEL_0;
 	config.ledc_timer = LEDC_TIMER_0;
@@ -424,11 +353,11 @@ void setup() {
 	
 	if(psramFound()){
 		config.frame_size = FRAMESIZE_UXGA;
-		config.jpeg_quality = 10;
+		config.jpeg_quality = 30;
 		config.fb_count = 1;
 	} else {
 		config.frame_size = FRAMESIZE_SVGA;
-		config.jpeg_quality = 12;
+		config.jpeg_quality = 30;
 		config.fb_count = 1;
 	}
 
@@ -440,9 +369,19 @@ void setup() {
 	}
 }
 
+void checkStatus() {
+	//Make sure wifi is still connected
+	//Make sure time is still synced 
+}
+
 void loop() {
+	//GENERAL TODO
+	//Wire button to an io pin that will trigger image capture and post to server 
+	//Set up as I2C slave
+
+	checkStatus();
 	capturePhotoSaveLittleFS();
-	sendPhoto();
+	postJPGPhoto();
 	//sendPhotoEmail();
 	delay(10000);
 }
