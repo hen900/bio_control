@@ -30,7 +30,7 @@ const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in 
 const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
 String serverResponse; 
-const int refreshRate = 3; 
+const int refreshRate = 5; 
 int loopCounter = 0;
 
 // Credentials
@@ -213,6 +213,14 @@ void autonomousSequence() {
 	Serial.print("Autonomous cycle complete");
 }
 
+void toggleAll(){
+	lights_blue.toggle();
+	atomizer.toggle();
+	fan_small.toggle();
+	fan_big.toggle();
+	heater.toggle();
+}
+
 void setup() {
 	Serial.begin(115200); 
 
@@ -223,13 +231,11 @@ void setup() {
 	fan_big.init(FAN_BIG); 			//Big Fan
 	heater.init(HEATER); 			//Heating Pad
 
-	autonomousSequence();
 	setupWifi();    
 	setupTime();
 }
 
 void loop() {
-
     loopCounter++;
     Serial.print("\n\nLoop");
     Serial.print(loopCounter);
@@ -241,8 +247,9 @@ void loop() {
 	Serial.print(serverResponse);
 	processResponse();
     updateBehavior();
+	toggleAll();
 
-	Serial.println("Pin Statuses");
+	Serial.println("\nPin Statuses");
 	Serial.println(atomizer.getStatus());
 	Serial.println(lights_blue.getStatus());
 	Serial.println(fan_small.getStatus());

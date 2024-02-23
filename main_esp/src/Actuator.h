@@ -17,7 +17,7 @@ public:
 		Serial.print("\nToggling Pin");
 		Serial.print(pin);
 
-		if (status = false) {
+		if (status == false) {
 			this->on();
 		} else {
 			this->off();
