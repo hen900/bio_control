@@ -10,12 +10,17 @@
 #include <Wire.h>
 
 // Network Info
-const char *ssid = "kessa"; //Enter your WIFI ssid
-const char *password = "noyesnonoyes"; //Enter your WIFI password
-const int serverPort = 3603;
+// //Kessa Hotspot
+// const char *ssid = "kessa"; //Enter your WIFI ssid
+// const char *password = "noyesnonoyes"; //Enter your WIFI password
+// //Henry Laptop Hotspot
+const char *ssid = "ghost"; //Enter your WIFI ssid
+const char *password = "thewinds"; //Enter your WIFI password
+
+const int serverPort = 80;
 WiFiClient client;
 String serverName = "mykologic.com";
-String serverPath = "/photoUpload"; 
+String serverPath = "/upload2.php"; 
 
 //NTP time values 
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
@@ -155,7 +160,8 @@ String postJPGPhoto() { //last photo
 		uint32_t imageLen = fb->len;
 		uint32_t extraLen = head.length() + tail.length();
 		uint32_t totalLen = imageLen + extraLen;
-	
+
+		Serial.println("\nAttempting post");
 		client.print("POST "); 
 		client.print(serverPath); 
 		client.println(" HTTP/1.1");
@@ -167,6 +173,7 @@ String postJPGPhoto() { //last photo
 		client.println();
 		client.print(head);
 
+		Serial.println("\nAttempting to write photo");
 		uint8_t *fbBuf = fb->buf;
 		size_t fileLen = fb->len;
 		for (size_t n=0; n<fileLen; n=n+1024) {
@@ -180,6 +187,7 @@ String postJPGPhoto() { //last photo
 		}
 		}   
 		client.print(tail);
+		Serial.println("\nAFinished Post");
 		
 		esp_camera_fb_return(fb);
 		
@@ -353,11 +361,11 @@ void setup() {
 	
 	if(psramFound()){
 		config.frame_size = FRAMESIZE_UXGA;
-		config.jpeg_quality = 30;
+		config.jpeg_quality = 40;
 		config.fb_count = 1;
 	} else {
 		config.frame_size = FRAMESIZE_SVGA;
-		config.jpeg_quality = 30;
+		config.jpeg_quality = 60;
 		config.fb_count = 1;
 	}
 

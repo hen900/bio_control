@@ -10,24 +10,25 @@
 
 Actuator atomizer;
 Actuator lights_blue;
-Actuator fan_small;
+Actuator lights_uv;
+//Actuator fan_small;
 Actuator fan_big;
 Actuator heater;
 BioSensor sensor1; 
 
 //PIN DEFS
-#define ATOMIZER 26
+#define ATOMIZER 15
 #define LIGHTS_BLUE 27
-//#define LIGHTS_UV  
-#define FAN_SMALL 14
-#define FAN_BIG 12
-#define HEATER 13
+#define LIGHTS_UV 33
+//#define FAN_SMALL 14
+#define FAN_BIG 32
+#define HEATER 12
 
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
 const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
-const char *server_url = "http://3.21.173.70:3603/meas"; // Nodejs application endpoint for gwireless
+const char *server_url = "http://45.56.113.173:3603/meas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
 String serverResponse; 
 const int refreshRate = 5; 
@@ -40,17 +41,20 @@ int loopCounter = 0;
 // //Henry Hotspot Wifi
 // const char *ssid = "ipome"; //Enter your WIFI ssid
 // const char *password = "poopdoop"; //Enter your WIFI password
+// //Henry Laptop Hotspot
+const char *ssid = "ghost"; //Enter your WIFI ssid
+const char *password = "thewinds"; //Enter your WIFI password
 // //Kessa Wifi
 // const char *ssid = "HomeWifi"; //Enter your WIFI ssid
 // const char *password = "Tonight@8"; //Enter your WIFI password
 // //Kessa Hotspot Wifi
-const char *ssid = "kessa"; //Enter your WIFI ssid
-const char *password = "noyesnonoyes"; //Enter your WIFI password
+// const char *ssid = "kessa"; //Enter your WIFI ssid
+// const char *password = "noyesnonoyes"; //Enter your WIFI password
 // //Alicia Wifi
 // const char *ssid = "Alicia-Hotspot"; //Enter your WIFI ssid
 // const char *password = "3*L5345m"; //Enter your WIFI password
 
-//MISC TODOS 
+// MISC TODOS 
 // move setupTime and setupWifi into synchTime and connectWifi functions with return type int, 
 // handle wifi dropping better 
 // sync time once a day (once a week?)
@@ -96,7 +100,7 @@ String makeJson() {
     doc["co2"] = sensor1.getCO2();
 	doc["actuator1Status"] =atomizer.getStatus(); 
     doc["actuator2Status"] = lights_blue.getStatus();  
-    doc["actuator3Status" ] = fan_small.getStatus(); 
+    doc["actuator3Status" ] = lights_uv.getStatus(); 
 	doc["actuator4Status"] = fan_big.getStatus();  
     doc["actuator5Status" ] = heater.getStatus(); 
 	doc["time"] = time(nullptr);
@@ -108,6 +112,10 @@ String makeJson() {
 
 void sendData(){ 
 	String json = makeJson();
+	Serial.print("\nSending message to server: ");
+	Serial.print(json);
+	Serial.println("\nEnd of message");
+
 	HTTPClient http;
 	http.begin(client, server_url);
 	http.addHeader("Content-Type", "application/json");
@@ -148,7 +156,7 @@ void processResponse() {
 
 	atomizer.setStatus(newActuator1Status);
 	lights_blue.setStatus(newActuator2Status);
-	fan_small.setStatus(newActuator3Status);
+	lights_uv.setStatus(newActuator3Status);
 	fan_big.setStatus(newActuator4Status);
 	heater.setStatus(newActuator5Status);
 }
@@ -167,7 +175,7 @@ void autonomousSequence() {
 	//Phase 1: Turn on lights, humidifier, and small fan for
 	lights_blue.on();
 	atomizer.on();
-	fan_small.on();
+	//fan_small.on();
 
 	//Establish original values
 	readData();
@@ -196,7 +204,7 @@ void autonomousSequence() {
 	//Phase 2: Turn off lights, humidifier, and small fan; clear the humidity
 	lights_blue.off();
 	atomizer.off();
-	fan_small.off();
+	//fan_small.off();
 	fan_big.on();
 	delay(60000);
 
@@ -215,8 +223,9 @@ void autonomousSequence() {
 
 void toggleAll(){
 	lights_blue.toggle();
+	lights_uv.toggle();
 	atomizer.toggle();
-	fan_small.toggle();
+	//fan_small.toggle();
 	fan_big.toggle();
 	heater.toggle();
 }
@@ -227,12 +236,15 @@ void setup() {
 	sensor1.init(); 
 	atomizer.init(ATOMIZER); 		//Atomizer
 	lights_blue.init(LIGHTS_BLUE);	//Lights
-	fan_small.init(FAN_SMALL); 		//Small Fan
+	lights_uv.init(LIGHTS_UV);
+	//fan_small.init(FAN_SMALL); 		//Small Fan
 	fan_big.init(FAN_BIG); 			//Big Fan
 	heater.init(HEATER); 			//Heating Pad
 
 	setupWifi();    
 	setupTime();
+
+	toggleAll();
 }
 
 void loop() {
@@ -246,13 +258,13 @@ void loop() {
 	Serial.println("\nServer Response");
 	Serial.print(serverResponse);
 	processResponse();
-    updateBehavior();
-	toggleAll();
+    //updateBehavior();
+	//toggleAll();
 
 	Serial.println("\nPin Statuses");
 	Serial.println(atomizer.getStatus());
 	Serial.println(lights_blue.getStatus());
-	Serial.println(fan_small.getStatus());
+	Serial.println(lights_uv.getStatus());
 	Serial.println(fan_big.getStatus());
 	Serial.println(heater.getStatus());
 

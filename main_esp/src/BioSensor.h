@@ -97,7 +97,7 @@ public:
     }
 
     void handleErrorMessage(const char* operation, uint16_t error, char* errorMessage) {
-        Serial.print("Sensor read error trying to execute ");
+        Serial.print("\nSensor read error trying to execute ");
         Serial.print(operation);
         Serial.print("(): ");
         errorToString(error, errorMessage, 256);
