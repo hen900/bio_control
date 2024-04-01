@@ -76,6 +76,18 @@ void setupWifi() {
     Serial.print(ssid);
 	Serial.println("Network");
 	WiFi.begin(ssid, password);
+
+	while (WiFi.status() != WL_CONNECTED) {
+		Serial.print("...");
+		delay(500);
+	}
+	Serial.println("WiFi connected");
+	delay(1000);
+}
+
+void checkWifi() {
+	if (WiFi.status() == WL_CONNECTED) { return; }
+
 	while (WiFi.status() != WL_CONNECTED) {
 		Serial.print("...");
 		delay(500);
@@ -244,7 +256,7 @@ void setup() {
 	setupWifi();    
 	setupTime();
 
-	toggleAll();
+	//toggleAll();
 }
 
 void loop() {
@@ -252,7 +264,8 @@ void loop() {
     Serial.print("\n\nLoop");
     Serial.print(loopCounter);
 	Serial.print("\n----------------------------------------------------------\n");
-
+	
+	checkWifi();
 	readData();
 	sendData();
 	Serial.println("\nServer Response");
