@@ -3,6 +3,12 @@
 #include <Wire.h>
 //todo clean up and remove junk functions
 class BioSensor {
+private:
+    SensirionI2CScd4x scd4x;
+    uint16_t co2Value;
+    float temperatureValue;
+    float humidityValue;
+
 public:
     BioSensor() {
         Wire.begin();
@@ -50,37 +56,33 @@ public:
         float temperature = 0.0f;
         float humidity = 0.0f;
         bool isDataReady = false;
-        Serial.print("\nA");
         error = this->scd4x.getDataReadyFlag(isDataReady);
         if (error) {
             handleErrorMessage("getDataReadyFlag", error, errorMessage);
             return;
         }
         if (!isDataReady) {
-            Serial.print("\nB");
             return;
         }
 
-        Serial.print("\nC");
         error = this->scd4x.readMeasurement(co2, temperature, humidity);
         if (error) {
             handleErrorMessage("readMeasurement", error, errorMessage);
         
         } else {
-            Serial.print("\nD");
             this->co2Value = co2;
             this->temperatureValue = temperature;
             this->humidityValue = humidity;
 
             //Test code todo delete
-            Serial.print("\n\nPrinting measurement");
-            Serial.print("\nCO2 Value:"); 
-            Serial.print(co2);
-            Serial.print("\t\tTemp Value: "); 
-            Serial.print(temperature);
-            Serial.print("\tHumidity Value: "); 
-            Serial.print(humidity);
-            Serial.print("\n");
+            // Serial.print("\n\nPrinting measurement");
+            // Serial.print("\nCO2 Value:"); 
+            // Serial.print(co2);
+            // Serial.print("\t\tTemp Value: "); 
+            // Serial.print(temperature);
+            // Serial.print("\tHumidity Value: "); 
+            // Serial.print(humidity);
+            // Serial.print("\n");
         }
     }
 
@@ -118,10 +120,4 @@ public:
         Serial.print(value < 16 ? "0" : "");
         Serial.print(value, HEX);
     }
-
-private:
-    SensirionI2CScd4x scd4x;
-    uint16_t co2Value;
-    float temperatureValue;
-    float humidityValue;
 };

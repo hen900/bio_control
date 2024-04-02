@@ -7,6 +7,7 @@
 #include <time.h>
 #include <Actuator.h>   
 #include <BioSensor.h>
+#include <H2oSensor.h>
 
 Actuator atomizer;
 Actuator lights_blue;
@@ -14,21 +15,27 @@ Actuator lights_uv;
 //Actuator fan_small;
 Actuator fan_big;
 Actuator heater;
-BioSensor sensor1; 
+BioSensor bio_sensor; 
+H2oSensor h2o_sensor;
 
 //PIN DEFS
-#define ATOMIZER 15
+#define ATOMIZER 14
 #define LIGHTS_BLUE 27
 #define LIGHTS_UV 33
 //#define FAN_SMALL 14
 #define FAN_BIG 32
 #define HEATER 12
 
+//I2C Defs
+#define CAMERA_ADDRESS 0x10
+#define H20_ADDRESS 0x77
+
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
 const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
 //const char *server_url = "http://barnibus.xyz:8080/meas"; // Nodejs application endpoint
-const char *server_url = "http://45.56.113.173:3603/meas"; // Nodejs application endpoint for gwireless
+//const char *server_url = "http://mykoprisma.com:3603/setMeas"; // Nodejs application endpoint for gwireless
+const char *server_url = "http://45.56.113.173:3603/setMeas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
 String serverResponse; 
 const int refreshRate = 5; 
@@ -97,7 +104,8 @@ void checkWifi() {
 }
 
 void readData() {
-	sensor1.read();
+	bio_sensor.read();
+	h2o_sensor.getWaterLevel();
 	//this is a separate function so we can put any new sensors here 
 	//(ultrasonic, float level, whatever)
 	//also call camera to take a pic here
@@ -107,18 +115,24 @@ String makeJson() {
 	DynamicJsonDocument doc(512); //todo static??
 	String json;
  
-	doc["humidity"] = sensor1.getHumidity();
-    doc["temperature"] = sensor1.getTemperature();
-    doc["co2"] = sensor1.getCO2();
+	doc["humidity"] = bio_sensor.getHumidity();
+	doc["co2"] = bio_sensor.getCO2();
+    doc["temperature"] = bio_sensor.getTemperature();
+	doc["timestamp"] = time(nullptr);
+	doc["waterLevel"] = h2o_sensor.getWaterLevel();
+	doc["actuator0Status"] = lights_blue.getStatus();
 	doc["actuator1Status"] =atomizer.getStatus(); 
     doc["actuator2Status"] = lights_blue.getStatus();  
     doc["actuator3Status" ] = lights_uv.getStatus(); 
 	doc["actuator4Status"] = fan_big.getStatus();  
-    doc["actuator5Status" ] = heater.getStatus(); 
-	doc["time"] = time(nullptr);
-
+    doc["actuator5Status" ] = heater.getStatus();
+	
 	//Convert the DynamicJsonDocument into one coherent string "json"
 	serializeJson(doc, json);
+
+	Serial.print("\nJson: ");
+	Serial.print(json);
+
 	return json;
 }
 
@@ -177,6 +191,12 @@ void updateBehavior() {
 	//put enviro control logic here. make decisions based on sensor values
 }
 
+void takePicture() {
+	Wire.beginTransmission(CAMERA_ADDRESS); 
+	Wire.write(0x01);
+	Wire.endTransmission();
+}
+
 void autonomousSequence() {
 	// lights_blue.on();
 	// atomizer.on();
@@ -191,7 +211,7 @@ void autonomousSequence() {
 
 	//Establish original values
 	readData();
-	float originalHumidity = sensor1.getHumidity();
+	float originalHumidity = bio_sensor.getHumidity();
 	float newHumidity = 0.0; 
 
 	// while (originalHumidity == 0.0) {
@@ -226,7 +246,7 @@ void autonomousSequence() {
 		delay(10000);
 		readData();
 		sendData();           
-		newHumidity = sensor1.getHumidity();
+		newHumidity = bio_sensor.getHumidity();
 	}
 
 	fan_big.off();
@@ -242,21 +262,75 @@ void toggleAll(){
 	heater.toggle();
 }
 
+void blinkInOrder() {
+	atomizer.on();
+	delay(3000);
+	atomizer.off();
+	delay(3000);
+	lights_blue.on();
+	delay(3000);
+	lights_blue.off();
+	delay(3000);
+	lights_uv.on();
+	delay(3000);
+	lights_uv.off();
+	delay(3000);
+	//fan_small.on();
+	//delay(1000);
+	//fan_small.off();
+	//delay(1000);
+	fan_big.on();
+	delay(3000);
+	fan_big.off();
+	heater.on();
+	delay(3000);
+	heater.off();
+	delay(3000);
+}
+
+void i2cScanner() {
+	byte error, address;
+	int nDevices;
+
+	Serial.println("Scanning...");
+
+	nDevices = 0;
+	for(address = 1; address < 127; address++ ) {
+		Wire.beginTransmission(address);
+		error = Wire.endTransmission();
+		if (error == 0) {
+			Serial.print("I2C device found at address 0x");
+			if (address<16) 
+				Serial.print("0");
+			Serial.print(address,HEX);
+			Serial.println("  !");
+			nDevices++;
+		} else if (error==4) {
+			Serial.print("Unknown error at address 0x");
+			if (address<16) 
+				Serial.print("0");
+			Serial.println(address,HEX);
+		}
+	}
+	if (nDevices == 0)
+		Serial.println("No I2C devices found\n");
+	else
+		Serial.println("done\n");
+}
+
 void setup() {
 	Serial.begin(115200); 
+	Wire.begin();
 
-	sensor1.init(); 
+	bio_sensor.init(); 
 	atomizer.init(ATOMIZER); 		//Atomizer
 	lights_blue.init(LIGHTS_BLUE);	//Lights
 	lights_uv.init(LIGHTS_UV);
-	//fan_small.init(FAN_SMALL); 		//Small Fan
 	fan_big.init(FAN_BIG); 			//Big Fan
 	heater.init(HEATER); 			//Heating Pad
 
 	setupWifi();    
 	setupTime();
-
-	//toggleAll();
 }
 
 void loop() {
@@ -269,10 +343,17 @@ void loop() {
 	readData();
 	sendData();
 	Serial.println("\nServer Response");
-	Serial.print(serverResponse);
+	Serial.println(serverResponse);
 	processResponse();
+
+	Serial.print("\nCalling take picture function");
+	takePicture();
+	Serial.println("Picture taken");
+
     //updateBehavior();
-	//toggleAll();
+	toggleAll();
+	//blinkInOrder();
+	//fan_big.on();
 
 	Serial.println("\nPin Statuses");
 	Serial.println(atomizer.getStatus());
@@ -281,16 +362,12 @@ void loop() {
 	Serial.println(fan_big.getStatus());
 	Serial.println(heater.getStatus());
 
+	Serial.print("Water level: ");
+	Serial.println(h2o_sensor.getWaterLevel());
+
+	i2cScanner();
+
+	makeJson();
+
     delay(refreshRate*1000);        
-}
-
-//Helpful Testing Snippets
-/*
-	//Fake json response for testing
-	serverResponse = "{\n\t\"actuator1Set\": true,\n\t\"actuator2Set\": true,\n\t\"actuator3Set\": true\n}";
-
-	// atomizer.on();
-	// lights_blue.on();
-	// fan_small.on();
-
-*/
+} 
