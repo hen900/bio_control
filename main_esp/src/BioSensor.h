@@ -87,6 +87,7 @@ public:
     }
 
     uint16_t getCO2() {
+        //todo this is dumb 1)dont make the caller call read() 2) make read() return the values as a struct
         return co2Value;
     }
 
@@ -94,7 +95,7 @@ public:
         return temperatureValue;
     }
 
-    float getHumidity() {
+    float getHumidity() { 
         return humidityValue;
     }
 

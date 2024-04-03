@@ -5,6 +5,7 @@ class Actuator {
 public:
 	Actuator() {}
 	Actuator(int pin) : pin(pin), status(false), actuatorName("") {}
+	int override = 0; // 0 = override to false, 1 = override to true, 2 = do not override
 
 	void init(int pin) {
 		this->pin = pin;
@@ -28,24 +29,24 @@ public:
 		return this->status;
 	}
 
-	void setStatus(String newStatus) {
+	void setStatus(int newStatus) {
 		boolean newStatusBool;
 
-		if(newStatus == "true") {
+		if(newStatus == 1) {
 			this->on();
 			this->status = true;
 
-		} else if (newStatus == "false") {
+		} else if (newStatus == 0) {
 			this->off();
 			this->status = false;
 		} else {
 			Serial.print("\nInvalid new status: "); Serial.print(newStatus);
 		}
 
-		Serial.print("Status set to ");
-		Serial.print(this->status);
-		Serial.print(" on pin ");
-		Serial.print(this->pin);
+		// Serial.print("Status set to ");
+		// Serial.print(this->status);
+		// Serial.print(" on pin ");
+		// Serial.print(this->pin);
 	}
 
 	bool getPin() {
@@ -57,13 +58,13 @@ public:
 	}
 
 	void on() {
-		Serial.print("\nTurning on actuator on pin"); Serial.print(this->pin);
+		Serial.print("\nTurning on actuator on pin "); Serial.println(this->pin);
 		digitalWrite(this->pin, HIGH);
 		this->status = true;
 	}
 
 	void off() {
-		Serial.print("\nTurning off actuator on pin"); Serial.print(this->pin);
+		Serial.print("\nTurning off actuator on pin "); Serial.println(this->pin);
 		digitalWrite(this->pin, LOW);
 		this->status = false;
 	}

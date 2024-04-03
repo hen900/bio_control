@@ -9,22 +9,21 @@
 #include <BioSensor.h>
 #include <H2oSensor.h>
 
-Actuator atomizer;
-Actuator lights_blue;
-Actuator lights_uv;
-//Actuator fan_small;
-Actuator fan_big;
-Actuator heater;
+Actuator atomizer; 		//Actuator 1
+Actuator fan; 			//Actuator 2
+Actuator lights_blue; 	//Actuator 3
+Actuator heater; 		//Actuator 4
+Actuator lights_uv;		//Actuator 5
 BioSensor bio_sensor; 
 H2oSensor h2o_sensor;
 
-//PIN DEFS
+//GPIO Pin Defs
+#define EXTRA 15
 #define ATOMIZER 14
+#define FAN 32
 #define LIGHTS_BLUE 27
-#define LIGHTS_UV 33
-//#define FAN_SMALL 14
-#define FAN_BIG 32
 #define HEATER 12
+#define LIGHTS_UV 33 
 
 //I2C Defs
 #define CAMERA_ADDRESS 0x10
@@ -40,6 +39,16 @@ WiFiClient client;
 String serverResponse; 
 const int refreshRate = 5; 
 int loopCounter = 0;
+unsigned long startTime = 0;
+const unsigned long timeout = 60000; // Wifi timeout duration in milliseconds (1 min)
+
+//Targets - initialized with reasonable starting values
+double targetHumidityH = 60;
+double targetHumidityL = 40;
+double targetCo2H = 600;
+double targetCo2L = 300;
+double targetTemperatureH = 25;
+double targetTemperatureL = 15;
 
 // Credentials
 // //Henry Wifi
@@ -62,16 +71,19 @@ const char *password = "thewinds"; //Enter your WIFI password
 // const char *password = "3*L5345m"; //Enter your WIFI password
 
 // MISC TODOS 
-// move setupTime and setupWifi into synchTime and connectWifi functions with return type int, 
-// handle wifi dropping better 
 // sync time once a day (once a week?)
 // make buffer to hold previous readings in case of dropped connection. Hold up to 10? check memory capacity for reasonable number
 
-void setupTime() {
+void syncTime() {
 	// Initialize and set the time
 	configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
 	// Wait until time is synchronized
 	while (!time(nullptr)) {
+		if (millis() - startTime >= timeout) {
+			Serial.println("Time sync timed out");
+			return;
+		}
 		Serial.println("Waiting for time synchronization...");
 		delay(1000);
 	}
@@ -95,7 +107,14 @@ void setupWifi() {
 void checkWifi() {
 	if (WiFi.status() == WL_CONNECTED) { return; }
 
+	startTime = millis(); // Start the timer
+
 	while (WiFi.status() != WL_CONNECTED) {
+		if (millis() - startTime >= timeout) {
+			Serial.println("WiFi connection timed out");
+			return;
+		}
+		
 		Serial.print("...");
 		delay(500);
 	}
@@ -106,9 +125,7 @@ void checkWifi() {
 void readData() {
 	bio_sensor.read();
 	h2o_sensor.getWaterLevel();
-	//this is a separate function so we can put any new sensors here 
-	//(ultrasonic, float level, whatever)
-	//also call camera to take a pic here
+	//takePicture();
 }
 
 String makeJson() {
@@ -124,7 +141,7 @@ String makeJson() {
 	doc["actuator1Status"] =atomizer.getStatus(); 
     doc["actuator2Status"] = lights_blue.getStatus();  
     doc["actuator3Status" ] = lights_uv.getStatus(); 
-	doc["actuator4Status"] = fan_big.getStatus();  
+	doc["actuator4Status"] = fan.getStatus();  
     doc["actuator5Status" ] = heater.getStatus();
 	
 	//Convert the DynamicJsonDocument into one coherent string "json"
@@ -174,21 +191,54 @@ void processResponse() {
 		return;
 	}
 
-	String newActuator1Status = doc["actuator1Set"];
-	String newActuator2Status = doc["actuator2Set"];
-	String newActuator3Status = doc["actuator3Set"];
-	String newActuator4Status = doc["actuator4Set"];
-	String newActuator5Status = doc["actuator5Set"];
-
-	atomizer.setStatus(newActuator1Status);
-	lights_blue.setStatus(newActuator2Status);
-	lights_uv.setStatus(newActuator3Status);
-	fan_big.setStatus(newActuator4Status);
-	heater.setStatus(newActuator5Status);
+	// Grab new values from server response
+	targetHumidityH = doc["presetHumidityH"].as<double>();
+	targetHumidityL = doc["presetHumidityL"].as<double>();
+	targetCo2H = doc["presetCo2H"].as<double>();
+	targetCo2L = doc["presetCo2L"].as<double>();
+	targetTemperatureH = doc["presetTemperatureH"].as<double>();
+	targetTemperatureL = doc["presetTemperatureL"].as<double>();	
+	
+	// Grab override values from server response
+	atomizer.override = doc["actuator1Override"].as<int>();
+	fan.override = doc["actuator2Override"].as<int>();
+	lights_blue.override = doc["actuator3Override"].as<int>();
+	heater.override = doc["actuator4Override"].as<int>();
+	lights_uv.override = doc["actuator5Override"].as<int>();
 }
 
 void updateBehavior() {
-	//put enviro control logic here. make decisions based on sensor values
+	//Update actuator behavior based on sensor readings and target values
+	//Get latest sensor readings
+	readData();
+
+	//Atomizer
+	if (atomizer.override == 2) {
+		if (bio_sensor.getHumidity() < targetHumidityL) { atomizer.on(); } 
+		else if (bio_sensor.getHumidity() > targetHumidityH) { atomizer.off(); }
+	} else { atomizer.setStatus(atomizer.override); }
+
+	//Fan
+	if (fan.override == 2) {
+		if (bio_sensor.getCO2() > targetCo2H) { fan.on(); } 
+		else if (bio_sensor.getCO2() < targetCo2L) { fan.off(); }
+	} else { fan.setStatus(fan.override); }
+
+	//Lights Blue
+	if (lights_blue.override == 2) {
+		//Add lights logic later
+	} else { lights_blue.setStatus(lights_blue.override); }
+
+	//Heater
+	if (heater.override == 2) {
+		if (bio_sensor.getTemperature() < targetTemperatureL) { heater.on(); } 
+		else if (bio_sensor.getTemperature() > targetTemperatureH) { heater.off(); }
+	} else { heater.setStatus(heater.override); }
+
+	//Lights UV
+	if (lights_uv.override == 2) {
+		//Add lights logic later
+	} else { lights_uv.setStatus(lights_uv.override); }
 }
 
 void takePicture() {
@@ -237,7 +287,7 @@ void autonomousSequence() {
 	lights_blue.off();
 	atomizer.off();
 	//fan_small.off();
-	fan_big.on();
+	fan.on();
 	delay(60000);
 
 	//Wait for humidity to decrease by 50%
@@ -249,17 +299,16 @@ void autonomousSequence() {
 		newHumidity = bio_sensor.getHumidity();
 	}
 
-	fan_big.off();
+	fan.off();
 	Serial.print("Autonomous cycle complete");
 }
 
 void toggleAll(){
-	lights_blue.toggle();
-	lights_uv.toggle();
 	atomizer.toggle();
-	//fan_small.toggle();
-	fan_big.toggle();
+	fan.toggle();
+	lights_blue.toggle();
 	heater.toggle();
+	lights_uv.toggle();
 }
 
 void blinkInOrder() {
@@ -275,13 +324,9 @@ void blinkInOrder() {
 	delay(3000);
 	lights_uv.off();
 	delay(3000);
-	//fan_small.on();
-	//delay(1000);
-	//fan_small.off();
-	//delay(1000);
-	fan_big.on();
+	fan.on();
 	delay(3000);
-	fan_big.off();
+	fan.off();
 	heater.on();
 	delay(3000);
 	heater.off();
@@ -323,14 +368,14 @@ void setup() {
 	Wire.begin();
 
 	bio_sensor.init(); 
-	atomizer.init(ATOMIZER); 		//Atomizer
-	lights_blue.init(LIGHTS_BLUE);	//Lights
+	atomizer.init(ATOMIZER);
+	lights_blue.init(LIGHTS_BLUE);
 	lights_uv.init(LIGHTS_UV);
-	fan_big.init(FAN_BIG); 			//Big Fan
-	heater.init(HEATER); 			//Heating Pad
+	fan.init(FAN);
+	heater.init(HEATER);
 
 	setupWifi();    
-	setupTime();
+	syncTime();
 }
 
 void loop() {
@@ -342,32 +387,27 @@ void loop() {
 	checkWifi();
 	readData();
 	sendData();
-	Serial.println("\nServer Response");
-	Serial.println(serverResponse);
 	processResponse();
+	updateBehavior();
 
-	Serial.print("\nCalling take picture function");
-	takePicture();
-	Serial.println("Picture taken");
-
-    //updateBehavior();
-	toggleAll();
+	//toggleAll();
 	//blinkInOrder();
-	//fan_big.on();
 
-	Serial.println("\nPin Statuses");
+	Serial.println("\nStatuses");
+	Serial.print ("Atomizer: ");
 	Serial.println(atomizer.getStatus());
+	Serial.print("Fan: ");
+	Serial.println(fan.getStatus());
+	Serial.print("Lights Blue: ");
 	Serial.println(lights_blue.getStatus());
-	Serial.println(lights_uv.getStatus());
-	Serial.println(fan_big.getStatus());
+	Serial.print("Heater: ");
 	Serial.println(heater.getStatus());
+	Serial.print("Lights UV: ");
+	Serial.println(lights_uv.getStatus());
 
-	Serial.print("Water level: ");
-	Serial.println(h2o_sensor.getWaterLevel());
+    delay(refreshRate*1000);   
 
-	i2cScanner();
-
-	makeJson();
-
-    delay(refreshRate*1000);        
+	// Serial.print("\nCalling take picture function");
+	// takePicture();
+	// Serial.println("Picture taken");     
 } 
