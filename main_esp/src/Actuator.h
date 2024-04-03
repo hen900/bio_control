@@ -58,13 +58,15 @@ public:
 	}
 
 	void on() {
-		Serial.print("\nTurning on actuator on pin "); Serial.println(this->pin);
+		if (this->status == true) { return; }
+		Serial.print("Turning on actuator on pin "); Serial.println(this->pin);
 		digitalWrite(this->pin, HIGH);
 		this->status = true;
 	}
 
 	void off() {
-		Serial.print("\nTurning off actuator on pin "); Serial.println(this->pin);
+		if (this->status == false) { return; }
+		Serial.print("Turning off actuator on pin "); Serial.println(this->pin);
 		digitalWrite(this->pin, LOW);
 		this->status = false;
 	}
