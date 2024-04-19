@@ -7,7 +7,8 @@
 #include <time.h>
 #include <Actuator.h>   
 #include <BioSensor.h>
-#include <H2oSensor.h>
+#include <H2oSensorCapacitive.h>
+#include <H2oSensorResistive.h>
 
 Actuator extra; 		//Actuator 0
 Actuator atomizer; 		//Actuator 1
@@ -15,8 +16,9 @@ Actuator fan; 			//Actuator 2
 Actuator lights_blue; 	//Actuator 3
 Actuator heater; 		//Actuator 4
 Actuator lights_uv;		//Actuator 5
+
 BioSensor bio_sensor; 
-H2oSensor h2o_sensor;
+H2oSensorResistive h2o_sensor;
 
 //GPIO Pin Defs
 #define EXTRA 15
@@ -25,10 +27,12 @@ H2oSensor h2o_sensor;
 #define LIGHTS_BLUE 27
 #define HEATER 12
 #define LIGHTS_UV 33 
+#define WATER_ANALOG_DATA 36
+#define WATER_ANALOG_POWER 10
 
 //I2C Defs
 #define CAMERA_ADDRESS 0x05
-#define H20_ADDRESS 0x77
+#define H2O_ADDRESS 0x77
 
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
@@ -40,7 +44,7 @@ String serverResponse;
 const int refreshRate = 1; 
 int loopCounter = 0;
 unsigned long startTime = 0;
-const unsigned long timeout = 60000; // Wifi timeout duration in milliseconds (1 min)
+const unsigned long timeout = 10000; // Wifi timeout duration in milliseconds (1 min)
 
 //Targets - initialized with reasonable starting values
 double targetHumidityH = 60;
@@ -130,9 +134,20 @@ void calibrateSensor() {
 
 void readData() {
 	bio_sensor.read();
-	// h2o_sensor.getWaterLevel();
+	// h2o_sensor.read();
 	//takePicture();
 }
+
+int getTime() {
+	int timestamp = time(nullptr);
+
+	if (timestamp < 10000) { //sanity check for timestamp
+		Serial.println("Failed to obtain time");
+		return 0;
+	} else {
+		return timestamp; //return time in seconds since 1970
+	}
+}	
 
 String makeJson() {
 	DynamicJsonDocument doc(512); //todo static??
@@ -141,8 +156,8 @@ String makeJson() {
 	doc["humidity"] = bio_sensor.getHumidity();
 	doc["co2"] = bio_sensor.getCO2();
     doc["temperature"] = bio_sensor.getTemperature();
-	doc["timestamp"] = time(nullptr);
-	doc["waterLevel"] = h2o_sensor.getWaterLevel();
+	doc["timestamp"] = getTime();
+	doc["waterLevel"] = h2o_sensor.read();
 	//doc["waterLevel"] = 65;
 	doc["actuator0Status"] = lights_blue.getStatus();
 	doc["actuator1Status"] =atomizer.getStatus(); 
@@ -161,6 +176,12 @@ String makeJson() {
 }
 
 void sendData(){ 
+	//Avoid system crash if no wifi connection
+	if (WiFi.status() != WL_CONNECTED) { 
+		Serial.println("No wifi connection, skipping data send");
+		return; 
+	}
+
 	String json = makeJson();
 	Serial.print("\nSending message to server: ");
 	Serial.print(json);
@@ -241,10 +262,10 @@ void updateBehavior() {
 	} else { lights_uv.setStatus(lights_uv.override); }
 
 	//Atomizer
-	if ((atomizer.override == 2) && (h2o_sensor.getWaterLevel() > 10)) {
+	if ((atomizer.override == 2) && (h2o_sensor.read() > 10)) {
 		if (bio_sensor.getHumidity() < targetHumidityL) { atomizer.on(); } 
 		else if (bio_sensor.getHumidity() > targetHumidityH) { atomizer.off(); }
-	} else if (h2o_sensor.getWaterLevel() > 10) {
+	} else if (h2o_sensor.read() > 10) {
 		atomizer.setStatus(atomizer.override); 
 		heater.off();
 		fan.off();
@@ -403,6 +424,7 @@ void setup() {
 	Wire.begin();
 
 	bio_sensor.init(); 
+	h2o_sensor.init(WATER_ANALOG_DATA, WATER_ANALOG_POWER);
 	atomizer.init(ATOMIZER);
 	lights_blue.init(LIGHTS_BLUE);
 	lights_uv.init(LIGHTS_UV);
@@ -413,8 +435,8 @@ void setup() {
 	lights_uv.on();
 	atomizer.off();
 
-	setupWifi();    
-	syncTime();	
+	// setupWifi();    
+	// syncTime();	
 }
 
 void loop() {
@@ -443,6 +465,8 @@ void loop() {
 	Serial.println(heater.getStatus());
 	Serial.print("Lights UV: ");
 	Serial.println(lights_uv.getStatus());
+	Serial.print("Water Level: ");
+	Serial.println(h2o_sensor.read());
 
 	Serial.print("\nTimestamp: ");
 	Serial.println(time(nullptr));

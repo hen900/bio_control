@@ -11,7 +11,7 @@ unsigned char high_data[12] = {0};
 #define ATTINY1_HIGH_ADDR   0x78
 #define ATTINY2_LOW_ADDR    0x77
 
-class H2oSensor {
+class H2oSensorCapacitive {
 private:
     void getHigh12SectionValue(void) {
         memset(high_data, 0, sizeof(high_data));
@@ -35,11 +35,11 @@ private:
     //     delay(10);
     // }
 public:
-    H2oSensor() {
+    H2oSensorCapacitive() {
         Wire.begin();
     }
 
-    int getWaterLevel() {
+    int read() {
         Serial.print("Getting water level");
         int sensorvalue_min = 250;
         int sensorvalue_max = 255;
