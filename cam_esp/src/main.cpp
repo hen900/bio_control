@@ -22,14 +22,19 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
+// Constants
+#define CONNECTION_TIMEOUT 10000
+
 // Connection Info
 const char* ssid = "ghost";
 const char* password = "thewinds";
 const char* serverAddress = "mykoprisma.com";
 const int serverPort = 3603;
+unsigned long startTime = 0;
 
 // Function declarations
 void sendPicture();
+void checkWifi();
 
 void setup() {
     Serial.begin(115200);
@@ -69,18 +74,42 @@ void setup() {
     // Connect to WiFi
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
+        if (millis() - startTime >= CONNECTION_TIMEOUT) {
+            Serial.println("Time sync timed out");
+            return;
+        }
+
         delay(500);
         Serial.print(".");
     }
     Serial.println("WiFi connected");
 }
 
-void loop() {
-    sendPicture();
-    delay(10000); // Wait for 10 seconds before the next capture
+void checkWifi() {
+	if (WiFi.status() == WL_CONNECTED) { return; }
+
+	startTime = millis(); // Start the timer
+
+	while (WiFi.status() != WL_CONNECTED) {
+		if (millis() - startTime >= CONNECTION_TIMEOUT) {
+			Serial.println("WiFi connection timed out");
+			return;
+		}
+		
+		Serial.print("...");
+		delay(500);
+	}
+	Serial.println("WiFi connected");
+	delay(1000);
 }
 
 void sendPicture() {
+    // Capture and discard the first 3 images to allow camera to stabilize
+    for (int i = 0; i < 3; i++) {
+        camera_fb_t* fb = esp_camera_fb_get();
+        esp_camera_fb_return(fb);
+    }
+
     // Capture image
     camera_fb_t* fb = esp_camera_fb_get();
     if (!fb) {
@@ -111,6 +140,12 @@ void sendPicture() {
     http.end();
     // Free memory
     esp_camera_fb_return(fb);
+}
+
+void loop() {
+    sendPicture();
+    checkWifi();
+    delay(10000); // Wait for 10 seconds before the next capture
 }
 
 //Todo process HTTP responses
