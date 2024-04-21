@@ -5,7 +5,7 @@ class Actuator {
 public:
 	Actuator() {}
 	Actuator(int pin) : pin(pin), status(false), actuatorName("") {}
-	int override = 0; // 0 = override to false, 1 = override to true, 2 = do not override
+	int override = 2; // 0 = override to false, 1 = override to true, 2 = do not override
 
 	void init(int pin) {
 		this->pin = pin;
