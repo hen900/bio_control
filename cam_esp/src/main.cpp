@@ -3,6 +3,7 @@
 #include <WiFiClient.h>
 #include <HTTPClient.h>
 #include <esp_camera.h>
+#include <esp_app_trace.h>
 
 // ESP32-CAM (AI-Thinker model) pins configuration
 #define PWDN_GPIO_NUM     32
@@ -25,19 +26,102 @@
 // Constants
 #define CONNECTION_TIMEOUT 10000
 
-// Connection Info
-const char* ssid = "ghost";
-const char* password = "thewinds";
+//Wifi
+const char *ssid[] = {"olivia", "sabrina", "taylor", "kessa"}; 
+const char *password[] = {"squidward", "squidward", "squidward", "noyesnonoyes"};
+
+//Network Info
+const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const char* serverAddress = "mykoprisma.com";
 const int serverPort = 3603;
 unsigned long startTime = 0;
 
-// Function declarations
-void sendPicture();
-void checkWifi();
+//Debugging
+unsigned long free_initial_heap;
+unsigned long free_setup_heap;
 
-void setup() {
-    Serial.begin(115200);
+void syncTime() {
+    // Set the time zone
+    unsigned long start_time = millis();
+    const char* timeZone = "EST5EDT,M3.2.0,M11.1.0";  // Eastern Time Zone (US)
+    configTzTime(timeZone, ntpServer);
+    
+    // Wait until time is synchronized
+    while (!time(nullptr)) {
+        if (millis() - startTime >= CONNECTION_TIMEOUT) {
+            Serial.println("Time sync timed out");
+            return;
+        }
+        Serial.println("Waiting for time synchronization...");
+        delay(1000);
+    }
+    Serial.println("Time synchronized");
+}
+
+int setupWifi() {
+	delay(3000);
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
+
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		unsigned long start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
+
+
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
+		}
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
+		}
+	}
+
+	Serial.println("Failed to connect to any network");
+	return 0;
+}
+
+int checkWifi() {
+	if (WiFi.status() == WL_CONNECTED) { return 1; }
+	delay(3000);
+    unsigned long start_time = 0;
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
+
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
+
+
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
+		}
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
+		}
+	}
+	Serial.println("Failed to connect to any network");
+	return 0;
+}
+
+void setupCamera() {
     // Camera configuration
     camera_config_t config;
     config.ledc_channel = LEDC_CHANNEL_0;
@@ -70,37 +154,6 @@ void setup() {
         Serial.printf("Camera init failed with error 0x%x", err);
         return;
     }
-
-    // Connect to WiFi
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        if (millis() - startTime >= CONNECTION_TIMEOUT) {
-            Serial.println("Time sync timed out");
-            return;
-        }
-
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("WiFi connected");
-}
-
-void checkWifi() {
-	if (WiFi.status() == WL_CONNECTED) { return; }
-
-	startTime = millis(); // Start the timer
-
-	while (WiFi.status() != WL_CONNECTED) {
-		if (millis() - startTime >= CONNECTION_TIMEOUT) {
-			Serial.println("WiFi connection timed out");
-			return;
-		}
-		
-		Serial.print("...");
-		delay(500);
-	}
-	Serial.println("WiFi connected");
-	delay(1000);
 }
 
 void sendPicture() {
@@ -108,19 +161,30 @@ void sendPicture() {
     for (int i = 0; i < 3; i++) {
         camera_fb_t* fb = esp_camera_fb_get();
         esp_camera_fb_return(fb);
+        delay(1000);
     }
 
-    // Capture image
+    // Capture image  
     camera_fb_t* fb = esp_camera_fb_get();
+
+    
     if (!fb) {
-        Serial.println("Camera capture failed");
-        return;
+        esp_camera_deinit();
+        delay(1000);  // Optional delay to allow hardware to reset
+        setupCamera();
+        fb = esp_camera_fb_get();
+        if (!fb) {
+            Serial.println("Camera capture failed, reinit did not resolve the issue");
+            return;
+        }
     }
+
     Serial.println("Image captured");
 
     //Prevent system crash from wifi connection failure
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi not connected");
+        esp_camera_fb_return(fb);
         return;
     }
 
@@ -130,7 +194,6 @@ void sendPicture() {
     // Set headers
     http.addHeader("Content-Type", "image/jpeg");
     http.addHeader("Content-Length", String(fb->len));
-    // Send image data
     int httpResponseCode = http.POST(fb->buf, fb->len);
     if (httpResponseCode > 0) {
         Serial.printf("HTTP Response code: %d\n", httpResponseCode);
@@ -138,14 +201,36 @@ void sendPicture() {
         Serial.printf("HTTP Error: %s\n", http.errorToString(httpResponseCode).c_str());
     }
     http.end();
-    // Free memory
     esp_camera_fb_return(fb);
 }
 
+void setup() {
+    Serial.begin(115200);
+    free_initial_heap = esp_get_free_heap_size();
+    Serial.print("Free initial heap: ");
+    Serial.println(free_initial_heap);
+
+    syncTime();
+    setupWifi();
+    setupCamera();
+
+    Serial.println("Free heap after setup");
+    free_setup_heap = esp_get_free_heap_size();
+    Serial.print(free_setup_heap*100/free_initial_heap);
+    Serial.println("%");
+}
+
 void loop() {
+    //Memory leak sanity check
+    Serial.print("\nFree heap in loop: ");
+    Serial.print(esp_get_free_heap_size()*100/free_initial_heap);
+    Serial.print("%, ");
+    Serial.print(esp_get_free_heap_size()*100/free_setup_heap);
+    Serial.println("%");  
+
     sendPicture();
     checkWifi();
-    delay(10000); // Wait for 10 seconds before the next capture
+    delay(10000); // Wait for 10 seconds before the next capture (switch to ten minutes when hotspot is fixed)
 }
 
 //Todo process HTTP responses
