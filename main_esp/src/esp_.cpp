@@ -28,23 +28,29 @@ H2oSensorResistive h2o_sensor;
 #define HEATER 12
 #define LIGHTS_UV 33 
 #define WATER_ANALOG_DATA 36
-#define WATER_ANALOG_POWER 10
+#define WATER_ANALOG_POWER 13
 
 //I2C Defs
 #define CAMERA_ADDRESS 0x05
 #define H2O_ADDRESS 0x77
 
+//Constants
+#define LOW_WATER_THRESHOLD 15
+#define CONNECTION_TIMEOUT 10000
+
+//Wifi
+const char *ssid[] = {"olivia", "sabrina", "taylor", "kessa"};
+const char *password[] = {"squidward", "squidward", "squidward", "noyesnonoyes"};
+
+//Networking Info
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
 const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
-
 const char *server_url = "http://45.56.113.173:3603/setMeas"; // Nodejs application endpoint for gwireless
 WiFiClient client;
 String serverResponse; 
-const int refreshRate = 1; 
+int refreshRate = 10; 
 int loopCounter = 0;
-unsigned long startTime = 0;
-const unsigned long timeout = 10000; // Wifi timeout duration in milliseconds (1 min)
 
 //Targets - initialized with reasonable starting values
 double targetHumidityH = 60;
@@ -57,80 +63,109 @@ double targetTemperatureL = 15;
 //Test Var
 bool is_calibrated = false; 
 
-
-const char *ssid = "ghost"; //Enter your WIFI ssid
-const char *password = "thewinds"; //Enter your WIFI password
-
-
 void syncTime() {
     // Set the time zone
+	unsigned long start_time = millis();
     const char* timeZone = "EST5EDT,M3.2.0,M11.1.0";  // Eastern Time Zone (US)
-    // Initialize and set the time
     configTzTime(timeZone, ntpServer);
     // Wait until time is synchronized
     while (!time(nullptr)) {
-        if (millis() - startTime >= timeout) {
+        if (millis() - start_time >= CONNECTION_TIMEOUT) {
             Serial.println("Time sync timed out");
             return;
         }
         Serial.println("Waiting for time synchronization...");
         delay(1000);
     }
+	Serial.println("Time synchronized");
 }
 
-void setupWifi() {
+int setupWifi() {
 	delay(3000);
-	Serial.println("\nAttempting Wifi Connection to ");
-    Serial.print(ssid);
-	Serial.println("Network");
-	WiFi.begin(ssid, password);
+	unsigned long start_time;
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
 
-	while (WiFi.status() != WL_CONNECTED) {
-		Serial.print("...");
-		delay(500);
-	}
-	Serial.println("WiFi connected");
-	delay(1000);
-}
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
 
-void checkWifi() {
-	if (WiFi.status() == WL_CONNECTED) { return; }
 
-	startTime = millis(); // Start the timer
-
-	while (WiFi.status() != WL_CONNECTED) {
-		if (millis() - startTime >= timeout) {
-			Serial.println("WiFi connection timed out");
-			return;
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
 		}
 		
-		Serial.print("...");
-		delay(500);
-	}
-	Serial.println("WiFi connected");
-	delay(1000);
-}
-
-void calibrateSensor() {
-	//check sensor every 1 day and 5 minutes
-	if(millis() > 200000 && is_calibrated == 0) { //--
-		if(bio_sensor.calibrate(targetCo2L)) {
-			Serial.println("Sensor calibrated");
-			is_calibrated = true;
-		} else {
-			Serial.println("Sensor calibration failed");
-			is_calibrated = false;
-		}	//--
-	 } else if (millis() % 86400000 == 300000) {
-		if(bio_sensor.calibrate(targetCo2L)) {
-			Serial.println("Sensor calibrated");
-			is_calibrated = true;
-		} else {
-			Serial.println("Sensor calibration failed");
-			is_calibrated = false;
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
 		}
 	}
+
+	Serial.println("Failed to connect to any network");
+	return 0;
 }
+
+int checkWifi() {
+	if (WiFi.status() == WL_CONNECTED) { return 1; }
+
+	delay(3000);
+	unsigned long start_time = millis();
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
+
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
+
+
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
+		}
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
+		}
+	}
+	Serial.println("Failed to connect to any network");
+	return 0;
+}
+
+// void calibrateSensor() {
+// 	//check sensor every 1 day and 5 minutes
+// 	if(millis() > 200000 && is_calibrated == 0) { //--
+// 		if(bio_sensor.calibrate(targetCo2L)) {
+// 			Serial.println("Sensor calibrated");
+// 			is_calibrated = true;
+// 		} else {
+// 			Serial.println("Sensor calibration failed");
+// 			is_calibrated = false;
+// 		}	//--
+// 	 } else if (millis() % 86400000 == 300000) {
+// 		if(bio_sensor.calibrate(targetCo2L)) {
+// 			Serial.println("Sensor calibrated");
+// 			is_calibrated = true;
+// 		} else {
+// 			Serial.println("Sensor calibration failed");
+// 			is_calibrated = false;
+// 		}
+// 	}
+// }
 
 void readData() {
 	bio_sensor.read();
@@ -140,7 +175,6 @@ void readData() {
 
 int getTime() {
 	int timestamp = time(nullptr);
-
 	if (timestamp < 10000) { //sanity check for timestamp
 		Serial.println("Failed to obtain time");
 		return 0;
@@ -158,7 +192,6 @@ String makeJson() {
     doc["temperature"] = bio_sensor.getTemperature();
 	doc["timestamp"] = getTime();
 	doc["waterLevel"] = h2o_sensor.read();
-	//doc["waterLevel"] = 65;
 	doc["actuator0Status"] = lights_blue.getStatus();
 	doc["actuator1Status"] =atomizer.getStatus(); 
     doc["actuator2Status"] = lights_blue.getStatus();  
@@ -168,10 +201,6 @@ String makeJson() {
 	
 	//Convert the DynamicJsonDocument into one coherent string "json"
 	serializeJson(doc, json);
-
-	// Serial.print("\nJson: ");
-	// Serial.print(json);
-
 	return json;
 }
 
@@ -233,6 +262,9 @@ void processResponse() {
 	lights_blue.override = doc["actuator3Override"].as<int>();
 	heater.override = doc["actuator4Override"].as<int>();
 	lights_uv.override = doc["actuator5Override"].as<int>();
+
+	//Update refresh rate
+	refreshRate = doc["updateInterval"].as<int>();
 }
 
 void updateBehavior() {
@@ -244,11 +276,12 @@ void updateBehavior() {
 	// fan.setStatus(1);
 	// lights_blue.setStatus(1);
 	// lights_uv.setStatus(1);
-	// heater.setStatus(1);
-	// atomizer.setStatus(1);
+	// heater.setStatus(0);
+	// atomizer.setStatus(0);
 
 	//Lights Blue
 	if (lights_blue.override == 2) {
+		lights_blue.on();
 	} else { lights_blue.setStatus(lights_blue.override); }
 
 	//Heater
@@ -259,10 +292,11 @@ void updateBehavior() {
 
 	//Lights UV
 	if (lights_uv.override == 2) {
+		lights_uv.off();
 	} else { lights_uv.setStatus(lights_uv.override); }
 
 	//Atomizer
-	if ((atomizer.override == 2) && (h2o_sensor.read() > 10)) {
+	if ((atomizer.override == 2) && (h2o_sensor.read() > LOW_WATER_THRESHOLD)) {
 		if (bio_sensor.getHumidity() < targetHumidityL) { atomizer.on(); } 
 		else if (bio_sensor.getHumidity() > targetHumidityH) { atomizer.off(); }
 	} else if (h2o_sensor.read() > 10) {
@@ -275,33 +309,11 @@ void updateBehavior() {
 		fan.off();
 	}
 
-	//Fan - must be evaluated AFTER atomizer
+	//Fan - must be evaluated after atomizer
 	if (fan.override == 2 && atomizer.getStatus() == 0){
 		if (bio_sensor.getCO2() > targetCo2H) { fan.on(); } 
 		else if (bio_sensor.getCO2() < targetCo2L) { fan.off(); }
 	} else { fan.setStatus(fan.override); }
-}
-
-int takePicture() {
-	Wire.beginTransmission(CAMERA_ADDRESS); // Start transmission to the device 
-	Wire.write((uint8_t)0); // Send an "empty" byte
-	Wire.endTransmission(); // End transmission
-
-	int confirmation = 0;
-
-	Wire.requestFrom(CAMERA_ADDRESS, 1);
-    if (Wire.available()) {
-		confirmation = static_cast<int>(Wire.read());
-	}
-	delay(10);
-
-	if (confirmation == 1) {
-		Serial.println("Picture taken successfully");
-	} else {
-		Serial.println("Picture failed");
-	}
-
-	return confirmation;
 }
 
 void autonomousSequence() {
@@ -435,8 +447,8 @@ void setup() {
 	lights_uv.on();
 	atomizer.off();
 
-	// setupWifi();    
-	// syncTime();	
+	setupWifi();  
+	syncTime();	
 }
 
 void loop() {
@@ -446,7 +458,7 @@ void loop() {
 	Serial.print("\n----------------------------------------------------------\n");
 	
 	checkWifi();
-	calibrateSensor();
+	//calibrateSensor();
 	readData();
 	sendData();
 	processResponse();
@@ -466,14 +478,15 @@ void loop() {
 	Serial.print("Lights UV: ");
 	Serial.println(lights_uv.getStatus());
 	Serial.print("Water Level: ");
-	Serial.println(h2o_sensor.read());
+	Serial.print(h2o_sensor.read());
+	Serial.println("%");
 
 	Serial.print("\nTimestamp: ");
 	Serial.println(time(nullptr));
-	Serial.print("Is calibrated: ");
-	Serial.println(is_calibrated);
+	// Serial.print("Is calibrated: ");
+	// Serial.println(is_calibrated);
 
-    delay(refreshRate*1000);   
+    delay(refreshRate*2000);   //todo restore to 1000 after server correction
 
 	// i2cScanner();
 	// Serial.println("\nCalling take picture function");

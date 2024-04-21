@@ -3,11 +3,12 @@
 #include <Wire.h>
 
 #define THRESHOLD 100
-#define MAX_LEVEL 450 //max analog reading - experimentally determined
+#define MIN_LEVEL 1000 //min analog reading experimentally determined
+#define MAX_LEVEL 3000 //max analog reading experimentally determined
 
 class H2oSensorResistive {
 public:
-    int last_value = 0;
+    double last_value = 0;
 
     H2oSensorResistive() {}
 
@@ -21,20 +22,28 @@ public:
     }
 
     int read() {
-        int new_level = 0;
+        double new_level = 0;
 
         //Serial.print("Getting water level");
         digitalWrite(powerPin, HIGH);
         delay(1000);
         new_level = analogRead(dataPin);
         digitalWrite(powerPin, LOW);
-        // Serial.print("Raw analog reading: ");
-        // Serial.print(new_level);
+        Serial.print("\nRaw analog reading: ");
+        Serial.println(new_level);
+
+        //prevent returning negative values
+        new_level = new_level - MIN_LEVEL;
+        if (new_level < 0) {
+            Serial.print("\nWater level too low");
+            return 0;
+        }
        
-        //calculate analog reading as an integer percentage
-        this->last_value = (new_level/MAX_LEVEL)*100;
-        return this->last_value;
-    }  
+        //calculate analog reading as a double percentage
+        this->last_value = (new_level / (MAX_LEVEL - MIN_LEVEL)) * 100;
+        // return this->last_value rounded to the nearest 5
+        return (int)(this->last_value - ((int)this->last_value % 5));
+    } 
 
 private:
     int powerPin;
