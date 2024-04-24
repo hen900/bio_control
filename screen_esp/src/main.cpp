@@ -1,3 +1,6 @@
+
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
 // This sketch if for an ESP32, it draws Jpeg images pulled from an SD Card
 // onto the TFT.
 
@@ -17,52 +20,177 @@
 #include <SD.h>
 #include <TFT_eSPI.h>
 #include <JPEGDecoder.h>
+#include <WiFi.h>
+
+#define CONNECTION_TIMEOUT 10000
 
 TFT_eSPI tft = TFT_eSPI();
 
-//Function declarations
+//Wifi
+const char *ssid[] = {"olivia", "sabrina", "taylor", "kessa"};
+const char *password[] = {"squidward", "squidward", "squidward", "noyesnonoyes"};
+
+//Networking Info
+const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
+const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
+const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
+const char *server_url = "http://45.56.113.173:3603/setMeas"; // Nodejs application endpoint for gwireless
+WiFiClient client;
+String serverResponse; 
+int refreshRate = 10; 
+int loopCounter = 0;
+
+// Function prototypes
 void drawSdJpeg(const char *filename, int xpos, int ypos);
 void jpegRender(int xpos, int ypos);
 void jpegInfo();
 void showTime(uint32_t msTime);
+void drawFahrenheit(int number);
+void drawCelcius(int number);
+void drawHumidity(int number);
+void drawCO2(int number);
+
+int setupWifi() {
+	delay(3000);
+	unsigned long start_time;
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
+
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
+
+
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
+		}
+		
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
+		}
+	}
+
+	Serial.println("Failed to connect to any network");
+	return 0;
+}
+
+int checkWifi() {
+	if (WiFi.status() == WL_CONNECTED) { return 1; }
+
+	delay(3000);
+	unsigned long start_time = millis();
+	int ssid_length = sizeof(ssid) / sizeof(ssid[0]);
+
+	for(int i = 0; i < ssid_length; i++) {
+		Serial.println("\nAttempting Wifi Connection to ");
+		Serial.print(ssid[i]);
+		Serial.println("Network");
+		start_time = millis();
+		WiFi.begin(ssid[i], password[i]);
+
+
+		while (WiFi.status() != WL_CONNECTED) {
+			if (millis() - start_time >= CONNECTION_TIMEOUT) {
+				Serial.println("WiFi connection timed out");
+				break;
+			}
+			Serial.print("...");
+			delay(500);
+		}
+		if(WiFi.status() == WL_CONNECTED) {
+			Serial.println("WiFi connected");
+			delay(1000);
+			return 1;
+		}
+	}
+	Serial.println("Failed to connect to any network");
+	return 0;
+}
+
 
 //####################################################################################################
 // Setup
 //####################################################################################################
 void setup() {
+  delay(5000);
   Serial.begin(115200);
+  Serial.println("A");
+  delay(5000);
 
   // Set all chip selects high to avoid bus contention during initialisation of each peripheral
   digitalWrite(22, HIGH); // Touch controller chip select (if used)
   digitalWrite(15, HIGH); // TFT screen chip select
   digitalWrite( 5, HIGH); // SD card chips select, must use GPIO 5 (ESP32 SS)
 
+  Serial.println("B");
+  delay(5000);
+
   tft.begin();
+
+  Serial.println("C");
+  delay(5000);
 
   if (!SD.begin(5, tft.getSPIinstance())) {
     Serial.println("Card Mount Failed");
     return;
   }
+  Serial.println("D");
+  delay(5000);
   uint8_t cardType = SD.cardType();
-
+  Serial.println("E");
+  delay(5000);
   if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
     return;
   }
 
+  delay(5000);
+  Serial.println("F");
   Serial.print("SD Card Type: ");
+  
+  delay(5000);
+  Serial.println("G");
   if (cardType == CARD_MMC) {
+    delay(5000);
     Serial.println("MMC");
   } else if (cardType == CARD_SD) {
+    delay(5000);
     Serial.println("SDSC");
   } else if (cardType == CARD_SDHC) {
+    delay(5000);
     Serial.println("SDHC");
   } else {
+    delay(5000);
     Serial.println("UNKNOWN");
   }
 
+  delay(5000);
+  Serial.println("H");
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  delay(5000);
+    Serial.println("I");
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
+  delay(5000);
+  Serial.println("J");
+
+  delay(10000);
+  Serial.println("K");
+  tft.setRotation(1);  // portrait
+  tft.fillScreen(0xFFFF);
+  delay(5000);
+  Serial.println("L");
+  drawSdJpeg("/screen_background.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
+  delay(5000);
+  Serial.println("M");
 
   Serial.println("initialisation done.");
 }
@@ -71,36 +199,101 @@ void setup() {
 // Main loop
 //####################################################################################################
 void loop() {
-
-  tft.setRotation(2);  // portrait
-  tft.fillScreen(random(0xFFFF));
-
   // The image is 300 x 300 pixels so we do some sums to position image in the middle of the screen!
   // Doing this by reading the image width and height from the jpeg info is left as an exercise!
-  int x = (tft.width()  - 300) / 2 - 1;
-  int y = (tft.height() - 300) / 2 - 1;
+  // int x = (tft.width()  - 300) / 2 - 1;
+  // int y = (tft.height() - 300) / 2 - 1;
+  drawFahrenheit(random(0, 100));
+  drawCelcius(random(0, 100));
+  drawHumidity(random(0, 100));
+  drawCO2(random(0, 1000));
 
-  tft.setRotation(1);  // portrait
-  
-  tft.fillScreen(0x0000);
-  drawSdJpeg("/weebHen.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
   delay(3000);
+  Serial.println("loop done"); 
+}
 
-  tft.fillScreen(0x0000);
-  drawSdJpeg("/yoda.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
-  delay(3000);
+//####################################################################################################
+// Draw number images
+//####################################################################################################
 
-  tft.fillScreen(0x0000);
-  drawSdJpeg("/chimp.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
-  delay(3000);
+void drawFahrenheit(int number) {
+  if(number > 0 && number < 100) {
+    //parse number into individual characters
+    int firstDigit = number / 10;
+    int secondDigit = number % 10;
 
-  tft.fillScreen(0x0000);
-  drawSdJpeg("/logo.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
-  delay(3000);
+    //make string of the number
+    String firstDigitString = "/"+String(firstDigit)+".jpg";
+    String secondDigitString = "/"+String(secondDigit)+".jpg";
+    drawSdJpeg(firstDigitString.c_str(), 60, 65);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg(secondDigitString.c_str(), 85, 65);     // This draws a jpeg pulled off the SD Card
 
-  while(1) {
-    delay(1000);
-  } // Wait here
+  } else {
+    //display error
+    drawSdJpeg("/0.jpg", 85, 65);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg("/0.jpg", 60, 65);     // This draws a jpeg pulled off the SD Card
+  }
+}
+
+void drawCelcius(int number) {
+  if(number > 0 && number < 100) {
+    //parse number into individual characters
+    int firstDigit = number / 10;
+    int secondDigit = number % 10;
+
+    //make string of the number
+    String firstDigitString = "/"+String(firstDigit)+".jpg";
+    String secondDigitString = "/"+String(secondDigit)+".jpg";
+    drawSdJpeg(firstDigitString.c_str(), 175, 65);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg(secondDigitString.c_str(), 200, 65);     // This draws a jpeg pulled off the SD Card
+
+  } else {
+    //display error zeros
+    drawSdJpeg("/0.jpg", 175, 65);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg("/0.jpg", 200, 65);     // This draws a jpeg pulled off the SD Card
+  }
+}
+
+void drawHumidity(int number) {
+  if(number > 0 && number < 100) {
+    //parse number into individual characters
+    int firstDigit = number / 10;
+    int secondDigit = number % 10;
+
+    //make string of the number
+    String firstDigitString = "/"+String(firstDigit)+".jpg";
+    String secondDigitString = "/"+String(secondDigit)+".jpg";
+    drawSdJpeg(firstDigitString.c_str(), 50, 175);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg(secondDigitString.c_str(), 75, 175);     // This draws a jpeg pulled off the SD Card
+
+  } else {
+    //display error zeros
+    drawSdJpeg("/0.jpg", 175, 65);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg("/0.jpg", 200, 65);     // This draws a jpeg pulled off the SD Card
+  }
+}
+
+void drawCO2(int number) {
+  if(number > 0 && number < 1000) {
+    //parse number into individual characters
+    int firstDigit = number / 100;
+    int secondDigit = number % 100 / 10;
+    int thirdDigit = number % 10;
+
+    //make string of the number
+    String firstDigitString = "/"+String(firstDigit)+".jpg";
+    String secondDigitString = "/"+String(secondDigit)+".jpg";
+    String thirdDigitString = "/"+String(thirdDigit)+".jpg";
+    drawSdJpeg(firstDigitString.c_str(), 175, 175);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg(secondDigitString.c_str(), 200, 175);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg(thirdDigitString.c_str(), 225, 175);     // This draws a jpeg pulled off the SD Card
+
+  } else {
+    //display error zeros
+    drawSdJpeg("/0.jpg", 175, 175);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg("/0.jpg", 200, 175);     // This draws a jpeg pulled off the SD Card
+    drawSdJpeg("/0.jpg", 225, 175);     // This draws a jpeg pulled off the SD Card
+  }
 }
 
 //####################################################################################################
