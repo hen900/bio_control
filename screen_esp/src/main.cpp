@@ -21,26 +21,37 @@
 #include <TFT_eSPI.h>
 #include <JPEGDecoder.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 #define CONNECTION_TIMEOUT 10000
 
 TFT_eSPI tft = TFT_eSPI();
 
 //Wifi
-const char *ssid[] = {"olivia", "sabrina", "taylor", "kessa"};
-const char *password[] = {"squidward", "squidward", "squidward", "noyesnonoyes"};
+const char *ssid[] = {"kessa", "olivia", "sabrina", "taylor"};
+const char *password[] = { "noyesnonoyes", "squidward", "squidward", "squidward"};
 
 //Networking Info
 const char* ntpServer  = "pool.ntp.org";  // NTP server address for time synchronization
 const long  gmtOffset_sec = -18000; //-5 hour offset for Eastern Standard Time (in seconds)
 const int   daylightOffset_sec = 3600; //1 hour offset for daylight savings (in seconds)
-const char *server_url = "http://45.56.113.173:3603/setMeas"; // Nodejs application endpoint for gwireless
+const char *server_url = "http://45.56.113.173:3603/getScreen"; // Nodejs application endpoint for gwireless
 WiFiClient client;
-String serverResponse; 
 int refreshRate = 10; 
 int loopCounter = 0;
+String serverResponse; 
+int humidity;
+int co2;
+int fahrenheit;
+int celcius;  
 
 // Function prototypes
+int setupWifi();
+int checkWifi();
+void sendRequest();
+void processResponse();
+int toCelcius(double fahrenheit);
 void drawSdJpeg(const char *filename, int xpos, int ypos);
 void jpegRender(int xpos, int ypos);
 void jpegInfo();
@@ -49,6 +60,7 @@ void drawFahrenheit(int number);
 void drawCelcius(int number);
 void drawHumidity(int number);
 void drawCO2(int number);
+
 
 int setupWifi() {
 	delay(3000);
@@ -116,82 +128,108 @@ int checkWifi() {
 	return 0;
 }
 
+void sendRequest(){ 
+	//Avoid system crash if no wifi connection
+	if (WiFi.status() != WL_CONNECTED) { 
+		Serial.println("No wifi connection, skipping data send");
+		return; 
+	}
+
+  Serial.println("Sending request to server");
+	HTTPClient http;
+	http.begin(client, server_url);
+	http.addHeader("Content-Type", "application/json");
+	int httpCode = http.GET();
+
+	//Attempt to decode GET response (http code 0 means 0 errors)
+	if(httpCode > 0 && (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY)) { 
+		serverResponse = http.getString(); 
+		Serial.print("Response: "); Serial.println(serverResponse);
+	} else {
+		Serial.printf("\n[HTTP] GET... failed, error: %s", http.errorToString(httpCode).c_str());
+		serverResponse = "error";
+	}
+
+	http.end();
+}
+
+void processResponse() {
+	//Serial.print("\nIn process response function\n");
+	if(serverResponse == "error") { 
+		Serial.print("Invalid response, no actuator updates");
+		return; 
+	}
+
+	DynamicJsonDocument doc(512);
+	DeserializationError error = deserializeJson(doc, serverResponse);
+	if (error) {
+		Serial.print("Bad deserialization");
+		Serial.println(error.f_str());
+		return;
+	}
+
+	// Grab new values from server response
+	humidity = doc["humidity"].as<int>();
+  co2 = doc["co2"].as<int>();
+  celcius = doc["temperature"].as<int>();
+  fahrenheit = toCelcius(doc["temperature"].as<double>());
+
+	//Update refresh rate
+	refreshRate = doc["updateInterval"].as<int>();
+}
+
+int toCelcius(double celcius) {
+  return (int)((celcius * 9 / 5) + 32);
+}
 
 //####################################################################################################
 // Setup
 //####################################################################################################
 void setup() {
-  delay(5000);
+  delay(1000);
   Serial.begin(115200);
-  Serial.println("A");
-  delay(5000);
 
   // Set all chip selects high to avoid bus contention during initialisation of each peripheral
   digitalWrite(22, HIGH); // Touch controller chip select (if used)
   digitalWrite(15, HIGH); // TFT screen chip select
   digitalWrite( 5, HIGH); // SD card chips select, must use GPIO 5 (ESP32 SS)
 
-  Serial.println("B");
-  delay(5000);
-
   tft.begin();
-
-  Serial.println("C");
-  delay(5000);
 
   if (!SD.begin(5, tft.getSPIinstance())) {
     Serial.println("Card Mount Failed");
     return;
   }
-  Serial.println("D");
-  delay(5000);
+
   uint8_t cardType = SD.cardType();
-  Serial.println("E");
-  delay(5000);
   if (cardType == CARD_NONE) {
     Serial.println("No SD card attached");
     return;
   }
 
-  delay(5000);
-  Serial.println("F");
   Serial.print("SD Card Type: ");
   
-  delay(5000);
-  Serial.println("G");
   if (cardType == CARD_MMC) {
-    delay(5000);
     Serial.println("MMC");
   } else if (cardType == CARD_SD) {
-    delay(5000);
     Serial.println("SDSC");
   } else if (cardType == CARD_SDHC) {
-    delay(5000);
     Serial.println("SDHC");
   } else {
-    delay(5000);
     Serial.println("UNKNOWN");
   }
 
-  delay(5000);
-  Serial.println("H");
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  delay(5000);
-    Serial.println("I");
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
-  delay(5000);
-  Serial.println("J");
+  // delay(1000);
+  // Serial.println("J");
+  // delay(1000);
+  // Serial.println("K");
 
-  delay(10000);
-  Serial.println("K");
   tft.setRotation(1);  // portrait
-  tft.fillScreen(0xFFFF);
-  delay(5000);
-  Serial.println("L");
   drawSdJpeg("/screen_background.jpg", 0, 0);     // This draws a jpeg pulled off the SD Card
-  delay(5000);
-  Serial.println("M");
 
+  setupWifi();
   Serial.println("initialisation done.");
 }
 
@@ -203,10 +241,14 @@ void loop() {
   // Doing this by reading the image width and height from the jpeg info is left as an exercise!
   // int x = (tft.width()  - 300) / 2 - 1;
   // int y = (tft.height() - 300) / 2 - 1;
-  drawFahrenheit(random(0, 100));
-  drawCelcius(random(0, 100));
-  drawHumidity(random(0, 100));
-  drawCO2(random(0, 1000));
+  checkWifi();
+  sendRequest();
+  processResponse();
+
+  drawFahrenheit(fahrenheit);
+  drawCelcius(celcius);
+  drawHumidity(humidity);
+  drawCO2(co2);
 
   delay(3000);
   Serial.println("loop done"); 
@@ -229,9 +271,17 @@ void drawFahrenheit(int number) {
     drawSdJpeg(secondDigitString.c_str(), 85, 65);     // This draws a jpeg pulled off the SD Card
 
   } else {
-    //display error
-    drawSdJpeg("/0.jpg", 85, 65);     // This draws a jpeg pulled off the SD Card
-    drawSdJpeg("/0.jpg", 60, 65);     // This draws a jpeg pulled off the SD Card
+    //parse number into individual characters
+    Serial.println("Error: Fahrenheit out of range");
+    Serial.println(number);
+    // int firstDigit = 7;
+    // int secondDigit = random(0, 7);
+
+    // //make string of the number
+    // String firstDigitString = "/"+String(firstDigit)+".jpg";
+    // String secondDigitString = "/"+String(secondDigit)+".jpg";
+    // drawSdJpeg(firstDigitString.c_str(), 60, 65);     // This draws a jpeg pulled off the SD Card
+    // drawSdJpeg(secondDigitString.c_str(), 85, 65);     // This draws a jpeg pulled off the SD Card
   }
 }
 
@@ -248,9 +298,16 @@ void drawCelcius(int number) {
     drawSdJpeg(secondDigitString.c_str(), 200, 65);     // This draws a jpeg pulled off the SD Card
 
   } else {
+    Serial.println("Error: Celcius out of range");
     //display error zeros
-    drawSdJpeg("/0.jpg", 175, 65);     // This draws a jpeg pulled off the SD Card
-    drawSdJpeg("/0.jpg", 200, 65);     // This draws a jpeg pulled off the SD Card
+    // int firstDigit = 2;
+    // int secondDigit = random(0, 5);
+    
+    // //make string of the number
+    // String firstDigitString = "/"+String(firstDigit)+".jpg";
+    // String secondDigitString = "/"+String(secondDigit)+".jpg";
+    // drawSdJpeg(firstDigitString.c_str(), 175, 65);     // This draws a jpeg pulled off the SD Card
+    // drawSdJpeg(secondDigitString.c_str(), 200, 65);     // This draws a jpeg pulled off the SD Card
   }
 }
 
@@ -268,8 +325,13 @@ void drawHumidity(int number) {
 
   } else {
     //display error zeros
-    drawSdJpeg("/0.jpg", 175, 65);     // This draws a jpeg pulled off the SD Card
-    drawSdJpeg("/0.jpg", 200, 65);     // This draws a jpeg pulled off the SD Card
+    Serial.println("Error: Humidity out of range");
+    // int firstDigit = 7;
+    // int secondDigit = random(5, 10);
+    // String firstDigitString = "/"+String(firstDigit)+".jpg";
+    // String secondDigitString = "/"+String(secondDigit)+".jpg";
+    // drawSdJpeg(firstDigitString.c_str(), 50, 175);     // This draws a jpeg pulled off the SD Card
+    // drawSdJpeg(secondDigitString.c_str(), 75, 175);     // This draws a jpeg pulled off the SD Card
   }
 }
 
@@ -290,9 +352,16 @@ void drawCO2(int number) {
 
   } else {
     //display error zeros
-    drawSdJpeg("/0.jpg", 175, 175);     // This draws a jpeg pulled off the SD Card
-    drawSdJpeg("/0.jpg", 200, 175);     // This draws a jpeg pulled off the SD Card
-    drawSdJpeg("/0.jpg", 225, 175);     // This draws a jpeg pulled off the SD Card
+    Serial.println("Error: CO2 out of range");
+    // int firstDigit = 6;
+    // int secondDigit = random(6, 10);
+    // int thirdDigit = random(0, 10);
+    // String firstDigitString = "/"+String(firstDigit)+".jpg";
+    // String secondDigitString = "/"+String(secondDigit)+".jpg";
+    // String thirdDigitString = "/"+String(thirdDigit)+".jpg";
+    // drawSdJpeg(firstDigitString.c_str(), 175, 175);     // This draws a jpeg pulled off the SD Card
+    // drawSdJpeg(secondDigitString.c_str(), 200, 175);     // This draws a jpeg pulled off the SD Card
+    // drawSdJpeg(thirdDigitString.c_str(), 225, 175);     // This draws a jpeg pulled off the SD Card
   }
 }
 
@@ -320,7 +389,7 @@ void drawSdJpeg(const char *filename, int xpos, int ypos) {
 
   if (decoded) {
     // print information about the image to the serial port
-    jpegInfo();
+    //jpegInfo();
     // render the image onto the screen at given coordinates
     jpegRender(xpos, ypos);
   }
